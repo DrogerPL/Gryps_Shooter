@@ -17,7 +17,7 @@ PLAYER_RADIUS = 0.40
 FPS = 60
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("RETRO FPS - Własny Sprite Dubeltówki")
+pygame.display.set_caption("RETRO FPS - Kompaktowy HUD w Lewym Dolnym Rogu")
 
 clock = pygame.time.Clock()
 
@@ -27,14 +27,38 @@ clock = pygame.time.Clock()
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+GRAY = (60, 60, 65)
+DARK_GRAY = (30, 30, 35)
+RED = (200, 40, 40)
 CEILING_COLOR = (35, 35, 42)
 FLOOR_COLOR = (65, 58, 50)
 
+# ============================================================
+# WCZYTANIE PORTRETÓW
+# ============================================================
+ 
+def load_portrait(path):
+    try:
+        # convert_alpha() zachowuje przezroczystość tła portretu PNG
+        return pygame.image.load(path).convert_alpha()
+    except Exception as e:
+        print(f"Nie udało się wczytać portretu z ścieżki '{path}': {e}")
+        # Awaryjny zastępczy awatar, jeśli plik nie istnieje
+        surf = pygame.Surface((80, 80))
+        surf.fill((120, 120, 130))
+        pygame.draw.circle(surf, (200, 200, 200), (40, 30), 20)
+        return surf
 
+natan_portraits = {
+    "full": load_portrait("assets/portraits/natan_100.png"),
+    "high": load_portrait("assets/portraits/natan_75.png"),
+    "mid": load_portrait("assets/portraits/natan_45.png"),
+    "low": load_portrait("assets/portraits/natan_low.png")
+}
 # ============================================================
 # TEKSTURY ŚCIAN, DRZWI I BRONI
 # ============================================================
-
+    
 def load_texture(path):
     try:
         return pygame.image.load(path).convert()
@@ -47,14 +71,22 @@ def load_texture(path):
 
 def load_weapon_texture(path):
     try:
-        # convert_alpha() zachowuje w pełni płynną przezroczystość (PNG z kanałem Alpha)
         return pygame.image.load(path).convert_alpha()
     except Exception as e:
         print(f"Nie udało się wczytać grafiki broni z ścieżki '{path}': {e}")
-        # Awaryjny prostokąt, jeśli plik nie zostanie znaleziony
         surf = pygame.Surface((100, 100), pygame.SRCALPHA)
         surf.fill((150, 50, 50, 128))
         return surf
+
+def load_portrait(path):
+    try:
+        return pygame.image.load(path).convert_alpha()
+    except Exception:
+        surf = pygame.Surface((70, 70))
+        surf.fill((120, 120, 130))
+        pygame.draw.circle(surf, (200, 200, 200), (35, 25), 18)
+        return surf
+
 wall_textures = {
     "1": load_texture("assets/textures/wall_brick.png"),
     "2": load_texture("assets/textures/wall_stone.png"),
@@ -62,27 +94,40 @@ wall_textures = {
     "D": load_texture("assets/textures/door.png")
 }
 
-# Wczytanie sprite'a dubeltówki (upewnij się, że plik tam jest!)[cite: 1]
+# Wczytanie sprite'ów dubeltówki
 shotgun_idle = load_weapon_texture("assets/weapons/shotgun.png")
 shotgun_fire = load_weapon_texture("assets/weapons/shotgun_shoot.png")
+
+# Wczytanie portretów postaci
+portraits = {
+    1: load_portrait("assets/portraits/natan.png"),
+    2: load_portrait("assets/portraits/jan.png"),
+    3: load_portrait("assets/portraits/wika.png")
+}
+
 
 # ============================================================
 # MAPA POZIOMU ("D" OZNACZA DRZWI)
 # ============================================================
 
 WORLD_MAP = [
-    "111111111111",
-    "100000000001",
-    "102200010001",
-    "100000010001",
-    "100011300001",
-    "100000D00001",  # Drzwi
-    "101000330001",
-    "100000000001",
-    "100110000001",
-    "100000000001",
-    "100000000001",
-    "111111111111"
+    "11111111111111111111",
+    "10000010000000100001",
+    "10220010222200103301",
+    "102200D0000D00103301",
+    "10000011100111100001",
+    "111D1110000003311111",
+    "10000000111100000001",
+    "10111102222201111101",
+    "10100D0200020D001001",
+    "10103302000203301001",
+    "10103302222203301001",
+    "101000000D0000001001",
+    "10111111000111111101",
+    "100000010D0100000001",
+    "10220001111100022001",
+    "10220000000000022001",
+    "11111111111111111111"
 ]
 
 MAP_WIDTH = len(WORLD_MAP[0])
@@ -103,13 +148,15 @@ AUTO_CLOSE_TIME = 3.0
 
 
 # ============================================================
-# SYSTEM WROGÓW (SPRITE'Y)
+# SYSTEM WROGÓW
 # ============================================================
 
 enemies = [
-    {"x": 4.5, "y": 4.5, "health": 3, "state": "idle"},
-    {"x": 8.5, "y": 2.5, "health": 3, "state": "idle"},
-    {"x": 9.5, "y": 9.5, "health": 3, "state": "idle"}
+    {"x": 4.5, "y": 2.5, "health": 3, "state": "idle"},
+    {"x": 15.5, "y": 2.5, "health": 3, "state": "idle"},
+    {"x": 9.5, "y": 9.5, "health": 3, "state": "idle"},
+    {"x": 3.5, "y": 13.5, "health": 3, "state": "idle"},
+    {"x": 16.5, "y": 13.5, "health": 3, "state": "idle"}
 ]
 
 ENEMY_SPEED = 1.2
@@ -124,13 +171,14 @@ weapons = {
     1: {
         "name": "Dubeltówka Natana",
         "max_ammo": 8,
-        "ammo": 2,
-        "fire_rate": 0.1,
+        "ammo": 8,
+        "fire_rate": 0.5,
         "reload_time": 1.5,
         "cooldown": 0.0,
         "reloading": False,
         "reload_timer": 0.0,
-        "damage": 3
+        "damage": 3,
+        "range": 4.0
     },
     2: {
         "name": "MP40 Jana",
@@ -141,7 +189,8 @@ weapons = {
         "cooldown": 0.0,
         "reloading": False,
         "reload_timer": 0.0,
-        "damage": 1
+        "damage": 1,
+        "range": 12.0
     },
     3: {
         "name": "2 Glocki Wiktorii",
@@ -152,10 +201,18 @@ weapons = {
         "cooldown": 0.0,
         "reloading": False,
         "reload_timer": 0.0,
-        "damage": 2
+        "damage": 2,
+        "range": 8.0
     }
 }
 
+selected_character = {
+    "id": 1,
+    "name": "Natan",
+    "weapon_id": 1
+}
+
+player_health = 100
 current_weapon_id = 1
 is_shooting_flash = 0
 
@@ -171,6 +228,63 @@ player_angle = 0.0
 MOVE_SPEED = 3.0
 ROTATION_SPEED = 2.0
 MOUSE_SENSITIVITY = 0.003
+
+
+# ============================================================
+# EKRAN WYBORU POSTACI
+# ============================================================
+
+def character_select_screen():
+    global selected_character, current_weapon_id
+    selecting = True
+
+    font_title = pygame.font.SysFont(None, 60)
+    font_option = pygame.font.SysFont(None, 40)
+    font_info = pygame.font.SysFont(None, 24)
+
+    while selecting:
+        screen.fill(DARK_GRAY)
+
+        title_surf = font_title.render("WYBIERZ SWOJĄ POSTAĆ", True, WHITE)
+        screen.blit(title_surf, (WIDTH // 2 - title_surf.get_width() // 2, 100))
+
+        chars = [
+            ("1. Natan (Dubeltówka - Potężny bliski zasięg)", 1, (200, 80, 80)),
+            ("2. Jan (MP40 - Szybki karabin maszynowy)", 2, (80, 200, 80)),
+            ("3. Wiktoria (2 Glocki - Zbalansowany duet)", 3, (80, 150, 200))
+        ]
+
+        for idx, (text, char_id, color) in enumerate(chars):
+            opt_surf = font_option.render(text, True, color)
+            screen.blit(opt_surf, (WIDTH // 2 - opt_surf.get_width() // 2, 280 + idx * 80))
+
+        hint_surf = font_info.render("Naciśnij 1, 2 lub 3 na klawiaturze, aby rozpocząć grę", True, (180, 180, 180))
+        screen.blit(hint_surf, (WIDTH // 2 - hint_surf.get_width() // 2, 580))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+                if event.key == pygame.K_1:
+                    selected_character = {"id": 1, "name": "Natan", "weapon_id": 1}
+                    selecting = False
+                elif event.key == pygame.K_2:
+                    selected_character = {"id": 2, "name": "Jan", "weapon_id": 2}
+                    selecting = False
+                elif event.key == pygame.K_3:
+                    selected_character = {"id": 3, "name": "Wiktoria", "weapon_id": 3}
+                    selecting = False
+
+        clock.tick(FPS)
+
+    current_weapon_id = selected_character["weapon_id"]
+    print(f"Wybrano postać: {selected_character['name']} z bronią ID: {current_weapon_id}")
 
 
 # ============================================================
@@ -198,7 +312,7 @@ def is_wall(x, y):
 
 
 # ============================================================
-# AKTUALIZACJA DRZWI
+# AKTUALIZACJA DRZWI I WROGÓW
 # ============================================================
 
 def update_doors(dt):
@@ -230,11 +344,6 @@ def update_doors(dt):
                     door["progress"] = 0.0
                     door["status"] = "closed"
 
-
-# ============================================================
-# AKTUALIZACJA WROGÓW (AI)
-# ============================================================
-
 def update_enemies(dt):
     for enemy in enemies:
         if enemy["health"] <= 0:
@@ -258,10 +367,11 @@ def update_enemies(dt):
 
 
 # ============================================================
-# RAYCASTING & RENDEROWANIE ŚWIATA I WROGÓW
+# RAYCASTING & RENDEROWANIE ŚWIATA
 # ============================================================
 
 def render_world():
+    # Świat zajmuje teraz całą wysokość ekranu (HEIGHT)
     screen.fill(CEILING_COLOR)
     pygame.draw.rect(
         screen,
@@ -425,7 +535,7 @@ def render_world():
 
 
 # ============================================================
-# RENDEROWANIE BRONI NA EKRANIE (PODMIENIONY SPRITE DUBELTÓWKI)
+# RENDEROWANIE BRONI NA EKRANIE
 # ============================================================
 
 def draw_weapon():
@@ -438,11 +548,8 @@ def draw_weapon():
     center_x = WIDTH // 2
     base_y = HEIGHT
 
-    # 1. Dubeltówka Natana
     if current_weapon_id == 1:
         scale_factor = 1.2 
-        
-        # WYBÓR KLATKI: Jeśli trwa strzał, bierzemy klatkę strzału, w przeciwnym razie zwykłą
         current_sprite = shotgun_fire if is_shooting_flash > 0 else shotgun_idle
 
         new_width = int(current_sprite.get_width() * scale_factor)
@@ -453,13 +560,11 @@ def draw_weapon():
         gun_y = base_y - new_height + 20  
         screen.blit(scaled_gun, (gun_x, gun_y))
 
-        # Ewentualny dodatkowy rozbłysk światła (jeśli Twoja grafika ma już wbudowany błysk, możesz to usunąć)
         if is_shooting_flash > 0:
             flash_surf = pygame.Surface((100, 100), pygame.SRCALPHA)
             pygame.draw.circle(flash_surf, (255, 220, 50, 180), (50, 50), random.randint(30, 45))
             screen.blit(flash_surf, (center_x - 50, gun_y - 20))
 
-    # 2. MP40 Jana (Nadal prototpy, możesz też podmienić na PNG)
     elif current_weapon_id == 2:
         gun_width = 100
         gun_height = 250
@@ -472,7 +577,6 @@ def draw_weapon():
             pygame.draw.circle(flash_surf, (255, 180, 50, 220), (40, 40), random.randint(30, 50))
             screen.blit(flash_surf, (center_x + 10, base_y - gun_height - 50))
 
-    # 3. 2 Glocki Wiktorii
     elif current_weapon_id == 3:
         left_rect = pygame.Rect(center_x - 280, base_y - 180, 90, 180)
         pygame.draw.rect(screen, (60, 60, 65), left_rect)
@@ -487,6 +591,80 @@ def draw_weapon():
             pygame.draw.circle(flash_surf, (255, 200, 50, 220), (35, 35), 35)
             screen.blit(flash_surf, (center_x - 270, base_y - 230))
             screen.blit(flash_surf, (center_x + 200, base_y - 230))
+
+
+# ============================================================
+# KOMPAKTOWY HUD W LEWYM DOLNYM ROGU (WOLF 3D STYLE)
+# ============================================================
+
+font_hud = pygame.font.SysFont(None, 32)
+font_small = pygame.font.SysFont(None, 18)
+
+def draw_wolfenstein_hud():
+    # Pozycja w lewym dolnym rogu
+    panel_x = 20
+    panel_y = HEIGHT - 110
+    panel_w = 300
+    panel_h = 90
+
+    # Tło panelu w stylu retro
+    pygame.draw.rect(screen, GRAY, (panel_x, panel_y, panel_w, panel_h))
+    pygame.draw.rect(screen, DARK_GRAY, (panel_x + 4, panel_y + 4, panel_w - 8, panel_h - 8))
+    
+    # Ramki 3D (efekt wklęsłości/wypukłości)
+    pygame.draw.line(screen, (180, 180, 180), (panel_x, panel_y), (panel_x + panel_w, panel_y), 3)
+    pygame.draw.line(screen, (180, 180, 180), (panel_x, panel_y), (panel_x, panel_y + panel_h), 3)
+    pygame.draw.line(screen, (20, 20, 20), (panel_x, panel_y + panel_h), (panel_x + panel_w, panel_y + panel_h), 3)
+    pygame.draw.line(screen, (20, 20, 20), (panel_x + panel_w, panel_y), (panel_x + panel_w, panel_y + panel_h), 3)
+
+    # Portret postaci po lewej stronie panelu
+    portrait_x = panel_x + 12
+    portrait_y = panel_y + 10
+    pygame.draw.rect(screen, (40, 40, 45), (portrait_x - 2, portrait_y - 2, 74, 74))
+    
+    # Wybór odpowiedniego portretu na podstawie HP (tylko dla Natana lub ogólnie)
+    if selected_character["id"] == 1:
+        if player_health >= 95:
+            char_portrait = natan_portraits["full"]
+        elif player_health >= 75:
+            char_portrait = natan_portraits["high"]
+        elif player_health >= 45:
+            char_portrait = natan_portraits["mid"]
+        else:
+            char_portrait = natan_portraits["low"]
+    else:
+        # Awaryjnie dla innych postaci, jeśli jeszcze nie mają kompletów
+        char_portrait = portraits.get(selected_character["id"], portraits[1])
+    scaled_portrait = pygame.transform.scale(char_portrait, (70, 70))
+    screen.blit(scaled_portrait, (portrait_x, portrait_y))
+
+    # Statystyki po prawej stronie portretu
+    stat_x = portrait_x + 85
+    
+    # Zdrowie (%)
+    hp_label = font_small.render("ZDROWIE", True, (180, 180, 180))
+    hp_text = f"{player_health}%"
+    hp_surf = font_hud.render(hp_text, True, RED if player_health < 30 else WHITE)
+    
+    screen.blit(hp_label, (stat_x, panel_y + 12))
+    screen.blit(hp_surf, (stat_x, panel_y + 28))
+
+    # Amunicja
+    weapon = weapons[current_weapon_id]
+    ammo_label = font_small.render("AMUNICJA", True, (180, 180, 180))
+    ammo_text = f"{weapon['ammo']} / {weapon['max_ammo']}"
+    if weapon["reloading"]:
+        ammo_text = "RELOAD"
+        
+    ammo_surf = font_hud.render(ammo_text, True, (255, 220, 50))
+
+    screen.blit(ammo_label, (stat_x + 110, panel_y + 12))
+    screen.blit(ammo_surf, (stat_x + 110, panel_y + 28))
+
+    # Informacje sterowania u góry ekranu
+    info_text = f"Postać: {selected_character['name']} | LMB/Spacja: Strzał | R: Przeładuj | F: Drzwi"
+    info_surface = font_small.render(info_text, True, (200, 200, 200))
+    screen.blit(info_surface, (20, 10))
 
 
 # ============================================================
@@ -506,7 +684,6 @@ def check_door_interaction():
         if door["status"] in ["closed", "closing"]:
             door["status"] = "opening"
 
-
 def shoot():
     global is_shooting_flash
     weapon = weapons[current_weapon_id]
@@ -523,6 +700,9 @@ def shoot():
             if enemy["health"] > 0:
                 enemy["state"] = "chasing"
 
+        hit_enemy = None
+        min_dist = weapon["range"]
+
         for enemy in enemies:
             if enemy["health"] <= 0:
                 continue
@@ -531,17 +711,35 @@ def shoot():
             dy = enemy["y"] - player_y
             dist = math.sqrt(dx**2 + dy**2)
 
+            if dist > min_dist:
+                continue
+
             angle_to_enemy = math.atan2(dy, dx)
             angle_diff = (angle_to_enemy - player_angle + math.pi) % (2 * math.pi) - math.pi
 
-            if abs(angle_diff) < 0.25 and dist < 8.0:
-                enemy["health"] -= weapon["damage"]
-                print(f"Trafiono wroga! Zdrowie: {enemy['health']}")
-                if enemy["health"] <= 0:
-                    print("Wróg pokonany!")
+            if abs(angle_diff) < 0.25:
+                ray_blocked = False
+                steps = int(dist * 10)
+                for i in range(1, steps):
+                    check_x = player_x + (dx * i / steps)
+                    check_y = player_y + (dy * i / steps)
+                    
+                    if is_wall(check_x, check_y):
+                        ray_blocked = True
+                        break
+                
+                if not ray_blocked and dist < min_dist:
+                    min_dist = dist
+                    hit_enemy = enemy
+
+        if hit_enemy:
+            hit_enemy["health"] -= weapon["damage"]
+            print(f"Trafiono wroga! Zdrowie wroga: {hit_enemy['health']}")
+            if hit_enemy["health"] <= 0:
+                print("Wróg pokonany!")
+
     else:
         print("Pusto! Wciśnij R, aby przeładować.")
-
 
 def reload_weapon():
     weapon = weapons[current_weapon_id]
@@ -549,7 +747,6 @@ def reload_weapon():
         weapon["reloading"] = True
         weapon["reload_timer"] = weapon["reload_time"]
         print(f"Przeładowywanie ({weapon['name']})...")
-
 
 def update_weapons(dt):
     global is_shooting_flash
@@ -567,27 +764,6 @@ def update_weapons(dt):
                 weapon["ammo"] = weapon["max_ammo"]
                 weapon["reloading"] = False
                 print("Przeładowano!")
-
-
-# ============================================================
-# HUD
-# ============================================================
-
-font = pygame.font.SysFont(None, 36)
-
-def draw_hud():
-    weapon = weapons[current_weapon_id]
-    
-    status_text = f"Postać/Broń: {weapon['name']} | Amunicja: {weapon['ammo']}/{weapon['max_ammo']}"
-    if weapon["reloading"]:
-        status_text = f"Przeładowywanie... [{weapon['name']}]"
-
-    text_surface = font.render(status_text, True, WHITE)
-    screen.blit(text_surface, (20, HEIGHT - 50))
-
-    info_text = "1/2/3: Broń | LMB: Strzał | R: Przeładuj | F: Drzwi | W/S/A/D + Mysz"
-    info_surface = pygame.font.SysFont(None, 24).render(info_text, True, (180, 180, 180))
-    screen.blit(info_surface, (20, 20))
 
 
 # ============================================================
@@ -704,13 +880,13 @@ def update_player(dt):
 # ============================================================
 
 def main():
-    global current_weapon_id
-    print("Uruchomiono silnik z grafiką dubeltówki PNG!")
+    character_select_screen()
+
+    print(f"Uruchomiono grę jako {selected_character['name']}!")
     
     pygame.mouse.set_visible(False)
     pygame.event.set_grab(True)
 
-    running = TYPE = True
     running = True
 
     while running:
@@ -726,19 +902,25 @@ def main():
                     check_door_interaction()
                 if event.key == pygame.K_r:
                     reload_weapon()
-                if event.key == pygame.K_1:
-                    current_weapon_id = 1
-                    print("Wybrano: Dubeltówka Natana")
-                if event.key == pygame.K_2:
-                    current_weapon_id = 2
-                    print("Wybrano: MP40 Jana")
-                if event.key == pygame.K_3:
-                    current_weapon_id = 3
-                    print("Wybrano: 2 Glocki Wiktorii")
-
                 if event.key == pygame.K_SPACE:
                     shoot()
 
+                # KLAWISZE TESTOWE DO SPRAWDZENIA PORTRETÓW:
+                if event.key in [pygame.K_9, pygame.K_8, pygame.K_7, pygame.K_6]:
+                    global player_health  # <--- TO ROZWIĄZUJE PROBLEM!
+
+                if event.key == pygame.K_9:  # Ustaw HP na 100% (stan początkowy)
+                    player_health = 100
+                    print("Test HP: 100%")
+                if event.key == pygame.K_8:  # Ustaw HP na 80% (drugi portret)
+                    player_health = 80
+                    print("Test HP: 80%")
+                if event.key == pygame.K_7:  # Ustaw HP na 50% (trzeci portret)
+                    player_health = 50
+                    print("Test HP: 50%")
+                if event.key == pygame.K_6:  # Ustaw HP na 20% (czwarty portret - ranny)
+                    player_health = 20
+                    print("Test HP: 20% (Ranny!)")
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     shoot()
@@ -750,7 +932,7 @@ def main():
 
         render_world()
         draw_weapon()
-        draw_hud()
+        draw_wolfenstein_hud()  # Zeznaje w lewym dolnym rogu
         draw_minimap()
 
         pygame.display.flip()
