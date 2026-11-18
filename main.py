@@ -1,6 +1,7 @@
 import pygame
 import math
 import sys
+import random
 
 # ============================================================
 # USTAWIENIA GRY
@@ -16,7 +17,7 @@ PLAYER_RADIUS = 0.40
 FPS = 60
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("RETRO FPS - Automatyczne Drzwi")
+pygame.display.set_caption("RETRO FPS - Własny Sprite Dubeltówki")
 
 clock = pygame.time.Clock()
 
@@ -31,20 +32,29 @@ FLOOR_COLOR = (65, 58, 50)
 
 
 # ============================================================
-# TEKSTURY ŚCIAN I DRZWI
+# TEKSTURY ŚCIAN, DRZWI I BRONI
 # ============================================================
 
 def load_texture(path):
     try:
         return pygame.image.load(path).convert()
     except Exception:
-        # Awaryjna tekstura proceduralna (szachownica)
         surf = pygame.Surface((64, 64))
         surf.fill((100, 100, 100))
         pygame.draw.rect(surf, (200, 200, 200), (0, 0, 32, 32))
         pygame.draw.rect(surf, (200, 200, 200), (32, 32, 32, 32))
         return surf
 
+def load_weapon_texture(path):
+    try:
+        # convert_alpha() zachowuje w pełni płynną przezroczystość (PNG z kanałem Alpha)
+        return pygame.image.load(path).convert_alpha()
+    except Exception as e:
+        print(f"Nie udało się wczytać grafiki broni z ścieżki '{path}': {e}")
+        # Awaryjny prostokąt, jeśli plik nie zostanie znaleziony
+        surf = pygame.Surface((100, 100), pygame.SRCALPHA)
+        surf.fill((150, 50, 50, 128))
+        return surf
 wall_textures = {
     "1": load_texture("assets/textures/wall_brick.png"),
     "2": load_texture("assets/textures/wall_stone.png"),
@@ -52,6 +62,9 @@ wall_textures = {
     "D": load_texture("assets/textures/door.png")
 }
 
+# Wczytanie sprite'a dubeltówki (upewnij się, że plik tam jest!)[cite: 1]
+shotgun_idle = load_weapon_texture("assets/weapons/shotgun.png")
+shotgun_fire = load_weapon_texture("assets/weapons/shotgun_shoot.png")
 
 # ============================================================
 # MAPA POZIOMU ("D" OZNACZA DRZWI)
@@ -75,7 +88,6 @@ WORLD_MAP = [
 MAP_WIDTH = len(WORLD_MAP[0])
 MAP_HEIGHT = len(WORLD_MAP)
 
-# Słownik stanów drzwi (progress: 0.0 = zamknięte, 1.0 = otwarte)
 doors = {}
 for y, row in enumerate(WORLD_MAP):
     for x, cell in enumerate(row):
@@ -83,11 +95,69 @@ for y, row in enumerate(WORLD_MAP):
             doors[(x, y)] = {
                 "progress": 0.0,
                 "timer": 0.0,
-                "status": "closed"  # "closed", "opening", "open", "closing"
+                "status": "closed"
             }
 
-DOOR_SPEED = 2.0        # Prędkość otwierania/zamykania
-AUTO_CLOSE_TIME = 3.0   # Czas w sekundach, przez jaki drzwi pozostają otwarte
+DOOR_SPEED = 2.0
+AUTO_CLOSE_TIME = 3.0
+
+
+# ============================================================
+# SYSTEM WROGÓW (SPRITE'Y)
+# ============================================================
+
+enemies = [
+    {"x": 4.5, "y": 4.5, "health": 3, "state": "idle"},
+    {"x": 8.5, "y": 2.5, "health": 3, "state": "idle"},
+    {"x": 9.5, "y": 9.5, "health": 3, "state": "idle"}
+]
+
+ENEMY_SPEED = 1.2
+ENEMY_DETECT_DIST = 5.0
+
+
+# ============================================================
+# SYSTEM BRONI I POSTACI
+# ============================================================
+
+weapons = {
+    1: {
+        "name": "Dubeltówka Natana",
+        "max_ammo": 8,
+        "ammo": 2,
+        "fire_rate": 0.1,
+        "reload_time": 1.5,
+        "cooldown": 0.0,
+        "reloading": False,
+        "reload_timer": 0.0,
+        "damage": 3
+    },
+    2: {
+        "name": "MP40 Jana",
+        "max_ammo": 32,
+        "ammo": 32,
+        "fire_rate": 0.12,
+        "reload_time": 2.0,
+        "cooldown": 0.0,
+        "reloading": False,
+        "reload_timer": 0.0,
+        "damage": 1
+    },
+    3: {
+        "name": "2 Glocki Wiktorii",
+        "max_ammo": 20,
+        "ammo": 20,
+        "fire_rate": 0.2,
+        "reload_time": 1.2,
+        "cooldown": 0.0,
+        "reloading": False,
+        "reload_timer": 0.0,
+        "damage": 2
+    }
+}
+
+current_weapon_id = 1
+is_shooting_flash = 0
 
 
 # ============================================================
@@ -100,6 +170,7 @@ player_angle = 0.0
 
 MOVE_SPEED = 3.0
 ROTATION_SPEED = 2.0
+MOUSE_SENSITIVITY = 0.003
 
 
 # ============================================================
@@ -117,18 +188,17 @@ def is_wall(x, y):
     if cell in ["1", "2", "3"]:
         return True
     
-    # Jeśli to drzwi, sprawdzamy ich stopień otwarcia
     if cell == "D":
         door_data = doors.get((map_x, map_y))
         if door_data and door_data["progress"] > 0.8:
-            return False  # Gracz może przejść, gdy są w większości otwarte
+            return False
         return True
 
     return False
 
 
 # ============================================================
-# AKTUALIZACJA DRZWI (ANIMACJA I TIMER)
+# AKTUALIZACJA DRZWI
 # ============================================================
 
 def update_doors(dt):
@@ -145,7 +215,6 @@ def update_doors(dt):
 
         elif door["status"] == "open":
             if player_on_door:
-                # Jeśli gracz stoi w progu, resetujemy timer, żeby drzwi się nie zamknęły
                 door["timer"] = AUTO_CLOSE_TIME
             else:
                 door["timer"] -= dt
@@ -154,7 +223,6 @@ def update_doors(dt):
 
         elif door["status"] == "closing":
             if player_on_door:
-                # Jeśli gracz wejdzie w zamykające się drzwi, natychmiast je otwórz z powrotem
                 door["status"] = "opening"
             else:
                 door["progress"] -= DOOR_SPEED * dt
@@ -164,7 +232,33 @@ def update_doors(dt):
 
 
 # ============================================================
-# RAYCASTING & RENDEROWANIE ŚWIATA
+# AKTUALIZACJA WROGÓW (AI)
+# ============================================================
+
+def update_enemies(dt):
+    for enemy in enemies:
+        if enemy["health"] <= 0:
+            continue
+
+        dx = player_x - enemy["x"]
+        dy = player_y - enemy["y"]
+        dist = math.sqrt(dx**2 + dy**2)
+
+        if dist < ENEMY_DETECT_DIST:
+            enemy["state"] = "chasing"
+
+        if enemy["state"] == "chasing" and dist > 0.5:
+            move_x = (dx / dist) * ENEMY_SPEED * dt
+            move_y = (dy / dist) * ENEMY_SPEED * dt
+
+            if not is_wall(enemy["x"] + move_x, enemy["y"]):
+                enemy["x"] += move_x
+            if not is_wall(enemy["x"], enemy["y"] + move_y):
+                enemy["y"] += move_y
+
+
+# ============================================================
+# RAYCASTING & RENDEROWANIE ŚWIATA I WROGÓW
 # ============================================================
 
 def render_world():
@@ -181,6 +275,8 @@ def render_world():
     plane_length = 0.66
     plane_x = -dir_y * plane_length
     plane_y = dir_x * plane_length
+
+    z_buffer = [float("inf")] * RENDER_WIDTH
 
     for x in range(RENDER_WIDTH):
         camera_x = 2.0 * x / RENDER_WIDTH - 1.0
@@ -230,7 +326,7 @@ def render_world():
                 if cell == "D":
                     door_data = doors.get((map_x, map_y))
                     if door_data and door_data["progress"] >= 1.0:
-                        continue  # Promień przechodzi przez w pełni otwarte drzwi
+                        continue
                 hit = True
 
         if map_x < 0 or map_x >= MAP_WIDTH or map_y < 0 or map_y >= MAP_HEIGHT:
@@ -242,6 +338,7 @@ def render_world():
             perp_wall_dist = (map_y - player_y + (1 - step_y) / 2) / ray_dir_y
 
         perp_wall_dist = max(0.05, perp_wall_dist)
+        z_buffer[x] = perp_wall_dist
 
         line_height = int(HEIGHT / perp_wall_dist)
         draw_start = max(0, HEIGHT // 2 - line_height // 2)
@@ -258,7 +355,6 @@ def render_world():
             wall_x = player_x + perp_wall_dist * ray_dir_x
         wall_x -= math.floor(wall_x)
 
-        # Przesunięcie tekstury drzwi w zależności od animacji
         if wall_type == "D":
             door_data = doors.get((map_x, map_y))
             open_progress = door_data["progress"] if door_data else 0.0
@@ -293,9 +389,108 @@ def render_world():
 
             screen.blit(wall_surface, (x * RENDER_SCALE, draw_start))
 
+    # RENDEROWANIE WROGÓW
+    sorted_enemies = sorted(enemies, key=lambda e: (player_x - e["x"])**2 + (player_y - e["y"])**2, reverse=True)
+
+    for enemy in sorted_enemies:
+        if enemy["health"] <= 0:
+            continue
+
+        sprite_x = enemy["x"] - player_x
+        sprite_y = enemy["y"] - player_y
+
+        inv_det = 1.0 / (plane_x * dir_y - dir_x * plane_y)
+        transform_x = inv_det * (dir_y * sprite_x - dir_x * sprite_y)
+        transform_y = inv_det * (-plane_y * sprite_x + plane_x * sprite_y)
+
+        if transform_y > 0.2:
+            screen_x = int((WIDTH / 2) * (1.0 + transform_x / transform_y))
+
+            sprite_height = abs(int(HEIGHT / transform_y))
+            sprite_width = abs(int(HEIGHT / transform_y))
+
+            draw_start_y = max(0, HEIGHT // 2 - sprite_height // 2)
+            draw_end_y = min(HEIGHT, HEIGHT // 2 + sprite_height // 2)
+
+            draw_start_x = max(0, screen_x - sprite_width // 2)
+            draw_end_x = min(WIDTH, screen_x + sprite_width // 2)
+
+            for stripe in range(draw_start_x, draw_end_x):
+                render_stripe_idx = stripe // RENDER_SCALE
+                if 0 <= render_stripe_idx < RENDER_WIDTH:
+                    if transform_y < z_buffer[render_stripe_idx]:
+                        color_val = max(50, min(255, int(255 / (1 + transform_y * 0.2))))
+                        enemy_color = (color_val, 20, 20)
+                        pygame.draw.line(screen, enemy_color, (stripe, draw_start_y), (stripe, draw_end_y))
+
 
 # ============================================================
-# INTERAKCJA Z DRZWIAMI (OTWIERANIE NA KLAWISZ F)
+# RENDEROWANIE BRONI NA EKRANIE (PODMIENIONY SPRITE DUBELTÓWKI)
+# ============================================================
+
+def draw_weapon():
+    global is_shooting_flash
+    weapon = weapons[current_weapon_id]
+
+    if weapon["reloading"]:
+        return
+
+    center_x = WIDTH // 2
+    base_y = HEIGHT
+
+    # 1. Dubeltówka Natana
+    if current_weapon_id == 1:
+        scale_factor = 1.2 
+        
+        # WYBÓR KLATKI: Jeśli trwa strzał, bierzemy klatkę strzału, w przeciwnym razie zwykłą
+        current_sprite = shotgun_fire if is_shooting_flash > 0 else shotgun_idle
+
+        new_width = int(current_sprite.get_width() * scale_factor)
+        new_height = int(current_sprite.get_height() * scale_factor)
+        scaled_gun = pygame.transform.scale(current_sprite, (new_width, new_height))
+
+        gun_x = center_x - new_width // 2
+        gun_y = base_y - new_height + 20  
+        screen.blit(scaled_gun, (gun_x, gun_y))
+
+        # Ewentualny dodatkowy rozbłysk światła (jeśli Twoja grafika ma już wbudowany błysk, możesz to usunąć)
+        if is_shooting_flash > 0:
+            flash_surf = pygame.Surface((100, 100), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 220, 50, 180), (50, 50), random.randint(30, 45))
+            screen.blit(flash_surf, (center_x - 50, gun_y - 20))
+
+    # 2. MP40 Jana (Nadal prototpy, możesz też podmienić na PNG)
+    elif current_weapon_id == 2:
+        gun_width = 100
+        gun_height = 250
+        gun_rect = pygame.Rect(center_x - 20, base_y - gun_height, gun_width, gun_height)
+        pygame.draw.rect(screen, (50, 55, 60), gun_rect)
+        pygame.draw.rect(screen, (30, 30, 35), (center_x + 30, base_y - 180, 25, 120))
+
+        if is_shooting_flash > 0:
+            flash_surf = pygame.Surface((80, 80), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 180, 50, 220), (40, 40), random.randint(30, 50))
+            screen.blit(flash_surf, (center_x + 10, base_y - gun_height - 50))
+
+    # 3. 2 Glocki Wiktorii
+    elif current_weapon_id == 3:
+        left_rect = pygame.Rect(center_x - 280, base_y - 180, 90, 180)
+        pygame.draw.rect(screen, (60, 60, 65), left_rect)
+        pygame.draw.rect(screen, (30, 30, 30), left_rect, 3)
+
+        right_rect = pygame.Rect(center_x + 190, base_y - 180, 90, 180)
+        pygame.draw.rect(screen, (60, 60, 65), right_rect)
+        pygame.draw.rect(screen, (30, 30, 30), right_rect, 3)
+
+        if is_shooting_flash > 0:
+            flash_surf = pygame.Surface((70, 70), pygame.SRCALPHA)
+            pygame.draw.circle(flash_surf, (255, 200, 50, 220), (35, 35), 35)
+            screen.blit(flash_surf, (center_x - 270, base_y - 230))
+            screen.blit(flash_surf, (center_x + 200, base_y - 230))
+
+
+# ============================================================
+# INTERAKCJA, STRZELANIE I TRAFIENIA
 # ============================================================
 
 def check_door_interaction():
@@ -308,9 +503,91 @@ def check_door_interaction():
 
     if (map_x, map_y) in doors:
         door = doors[(map_x, map_y)]
-        # Jeśli drzwi są zamknięte lub się zamykają, wyzwól ich otwarcie
         if door["status"] in ["closed", "closing"]:
             door["status"] = "opening"
+
+
+def shoot():
+    global is_shooting_flash
+    weapon = weapons[current_weapon_id]
+
+    if weapon["reloading"] or weapon["cooldown"] > 0:
+        return
+
+    if weapon["ammo"] > 0:
+        weapon["ammo"] -= 1
+        weapon["cooldown"] = weapon["fire_rate"]
+        is_shooting_flash = 4
+
+        for enemy in enemies:
+            if enemy["health"] > 0:
+                enemy["state"] = "chasing"
+
+        for enemy in enemies:
+            if enemy["health"] <= 0:
+                continue
+
+            dx = enemy["x"] - player_x
+            dy = enemy["y"] - player_y
+            dist = math.sqrt(dx**2 + dy**2)
+
+            angle_to_enemy = math.atan2(dy, dx)
+            angle_diff = (angle_to_enemy - player_angle + math.pi) % (2 * math.pi) - math.pi
+
+            if abs(angle_diff) < 0.25 and dist < 8.0:
+                enemy["health"] -= weapon["damage"]
+                print(f"Trafiono wroga! Zdrowie: {enemy['health']}")
+                if enemy["health"] <= 0:
+                    print("Wróg pokonany!")
+    else:
+        print("Pusto! Wciśnij R, aby przeładować.")
+
+
+def reload_weapon():
+    weapon = weapons[current_weapon_id]
+    if not weapon["reloading"] and weapon["ammo"] < weapon["max_ammo"]:
+        weapon["reloading"] = True
+        weapon["reload_timer"] = weapon["reload_time"]
+        print(f"Przeładowywanie ({weapon['name']})...")
+
+
+def update_weapons(dt):
+    global is_shooting_flash
+    
+    if is_shooting_flash > 0:
+        is_shooting_flash -= 1
+
+    for w_id, weapon in weapons.items():
+        if weapon["cooldown"] > 0:
+            weapon["cooldown"] -= dt
+
+        if weapon["reloading"]:
+            weapon["reload_timer"] -= dt
+            if weapon["reload_timer"] <= 0:
+                weapon["ammo"] = weapon["max_ammo"]
+                weapon["reloading"] = False
+                print("Przeładowano!")
+
+
+# ============================================================
+# HUD
+# ============================================================
+
+font = pygame.font.SysFont(None, 36)
+
+def draw_hud():
+    weapon = weapons[current_weapon_id]
+    
+    status_text = f"Postać/Broń: {weapon['name']} | Amunicja: {weapon['ammo']}/{weapon['max_ammo']}"
+    if weapon["reloading"]:
+        status_text = f"Przeładowywanie... [{weapon['name']}]"
+
+    text_surface = font.render(status_text, True, WHITE)
+    screen.blit(text_surface, (20, HEIGHT - 50))
+
+    info_text = "1/2/3: Broń | LMB: Strzał | R: Przeładuj | F: Drzwi | W/S/A/D + Mysz"
+    info_surface = pygame.font.SysFont(None, 24).render(info_text, True, (180, 180, 180))
+    screen.blit(info_surface, (20, 20))
 
 
 # ============================================================
@@ -319,18 +596,17 @@ def check_door_interaction():
 
 def draw_minimap():
     tile_size = 12
-    offset_x = 20
+    offset_x = WIDTH - (MAP_WIDTH * tile_size) - 20
     offset_y = 20
 
     for y, row in enumerate(WORLD_MAP):
         for x, cell in enumerate(row):
             if cell == "D":
-                # Kolor drzwi zmienia się w zależności od stanu na minimapie
                 door_data = doors.get((x, y))
                 if door_data and door_data["progress"] > 0.5:
-                    color = (100, 255, 100)  # Jasnozielony = otwarte
+                    color = (100, 255, 100)
                 else:
-                    color = (200, 150, 50)   # Pomarańczowy = zamknięte
+                    color = (200, 150, 50)
             elif cell != "0":
                 color = WHITE
             else:
@@ -347,13 +623,19 @@ def draw_minimap():
                 )
             )
 
+    for enemy in enemies:
+        if enemy["health"] > 0:
+            ex = offset_x + int(enemy["x"] * tile_size)
+            ey = offset_y + int(enemy["y"] * tile_size)
+            pygame.draw.circle(screen, (255, 0, 0), (ex, ey), 3)
+
     px = offset_x + int(player_x * tile_size)
     py = offset_y + int(player_y * tile_size)
 
-    pygame.draw.circle(screen, (255, 50, 50), (px, py), 4)
+    pygame.draw.circle(screen, (50, 50, 255), (px, py), 4)
     pygame.draw.line(
         screen,
-        (255, 50, 50),
+        (50, 50, 255),
         (px, py),
         (
             px + int(math.cos(player_angle) * 15),
@@ -376,6 +658,9 @@ def update_player(dt):
         player_angle -= ROTATION_SPEED * dt
     if keys[pygame.K_e] or keys[pygame.K_RIGHT]:
         player_angle += ROTATION_SPEED * dt
+
+    mouse_rel = pygame.mouse.get_rel()
+    player_angle += mouse_rel[0] * MOUSE_SENSITIVITY
 
     move_x = 0
     move_y = 0
@@ -419,8 +704,13 @@ def update_player(dt):
 # ============================================================
 
 def main():
-    print("Uruchomiono silnik z automatycznymi drzwiami!")
-    print("Sterowanie: W/S/A/D (ruch), Q/E lub Strzałki (obrót), F (otwórz drzwi).")
+    global current_weapon_id
+    print("Uruchomiono silnik z grafiką dubeltówki PNG!")
+    
+    pygame.mouse.set_visible(False)
+    pygame.event.set_grab(True)
+
+    running = TYPE = True
     running = True
 
     while running:
@@ -434,10 +724,33 @@ def main():
                     running = False
                 if event.key == pygame.K_f:
                     check_door_interaction()
+                if event.key == pygame.K_r:
+                    reload_weapon()
+                if event.key == pygame.K_1:
+                    current_weapon_id = 1
+                    print("Wybrano: Dubeltówka Natana")
+                if event.key == pygame.K_2:
+                    current_weapon_id = 2
+                    print("Wybrano: MP40 Jana")
+                if event.key == pygame.K_3:
+                    current_weapon_id = 3
+                    print("Wybrano: 2 Glocki Wiktorii")
+
+                if event.key == pygame.K_SPACE:
+                    shoot()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    shoot()
 
         update_player(dt)
-        update_doors(dt)  # Aktualizacja stanu i timera drzwi w każdej klatce
+        update_doors(dt)
+        update_weapons(dt)
+        update_enemies(dt)
+
         render_world()
+        draw_weapon()
+        draw_hud()
         draw_minimap()
 
         pygame.display.flip()
