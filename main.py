@@ -55,6 +55,13 @@ natan_portraits = {
     "mid": load_portrait("assets/portraits/natan_45.png"),
     "low": load_portrait("assets/portraits/natan_low.png")
 }
+
+jan_portraits = {
+    "full": load_portrait("assets/portraits/jan_100.png"),
+    "high": load_portrait("assets/portraits/jan_75.png"),
+    "mid": load_portrait("assets/portraits/jan_45.png"),
+    "low": load_portrait("assets/portraits/jan_low.png")
+}
 # ============================================================
 # TEKSTURY ŚCIAN, DRZWI I BRONI
 # ============================================================
@@ -560,10 +567,6 @@ def draw_weapon():
         gun_y = base_y - new_height + 20  
         screen.blit(scaled_gun, (gun_x, gun_y))
 
-        if is_shooting_flash > 0:
-            flash_surf = pygame.Surface((100, 100), pygame.SRCALPHA)
-            pygame.draw.circle(flash_surf, (255, 220, 50, 180), (50, 50), random.randint(30, 45))
-            screen.blit(flash_surf, (center_x - 50, gun_y - 20))
 
     elif current_weapon_id == 2:
         gun_width = 100
@@ -602,10 +605,10 @@ font_small = pygame.font.SysFont(None, 18)
 
 def draw_wolfenstein_hud():
     # Pozycja w lewym dolnym rogu
-    panel_x = 20
-    panel_y = HEIGHT - 110
-    panel_w = 300
-    panel_h = 90
+    panel_x = 0
+    panel_y = HEIGHT - 100
+    panel_w = 335
+    panel_h = 100
 
     # Tło panelu w stylu retro
     pygame.draw.rect(screen, GRAY, (panel_x, panel_y, panel_w, panel_h))
@@ -617,37 +620,44 @@ def draw_wolfenstein_hud():
     pygame.draw.line(screen, (20, 20, 20), (panel_x, panel_y + panel_h), (panel_x + panel_w, panel_y + panel_h), 3)
     pygame.draw.line(screen, (20, 20, 20), (panel_x + panel_w, panel_y), (panel_x + panel_w, panel_y + panel_h), 3)
 
-    # Portret postaci po lewej stronie panelu
-    portrait_x = panel_x + 12
-    portrait_y = panel_y + 10
-    pygame.draw.rect(screen, (40, 40, 45), (portrait_x - 2, portrait_y - 2, 74, 74))
-    
-    # Wybór odpowiedniego portretu na podstawie HP (tylko dla Natana lub ogólnie)
-    if selected_character["id"] == 1:
+    # Większy portret dosunięty do lewego górnego rogu wnętrza panelu (bez luzów na brzegach)
+    portrait_size = 86
+    portrait_x = panel_x + 7
+    portrait_y = panel_y + 7
+    pygame.draw.rect(screen, (40, 40, 45), (portrait_x, portrait_y, portrait_size, portrait_size))
+
+    def pick_portrait(portrait_set):
         if player_health >= 95:
-            char_portrait = natan_portraits["full"]
+            return portrait_set["full"]
         elif player_health >= 75:
-            char_portrait = natan_portraits["high"]
+            return portrait_set["high"]
         elif player_health >= 45:
-            char_portrait = natan_portraits["mid"]
+            return portrait_set["mid"]
         else:
-            char_portrait = natan_portraits["low"]
+            return portrait_set["low"]
+
+    # Wybór odpowiedniego portretu na podstawie HP
+    if selected_character["id"] == 1:
+        char_portrait = pick_portrait(natan_portraits)
+    elif selected_character["id"] == 2:
+        char_portrait = pick_portrait(jan_portraits)
     else:
         # Awaryjnie dla innych postaci, jeśli jeszcze nie mają kompletów
         char_portrait = portraits.get(selected_character["id"], portraits[1])
-    scaled_portrait = pygame.transform.scale(char_portrait, (70, 70))
+
+    scaled_portrait = pygame.transform.scale(char_portrait, (portrait_size, portrait_size))
     screen.blit(scaled_portrait, (portrait_x, portrait_y))
 
     # Statystyki po prawej stronie portretu
-    stat_x = portrait_x + 85
+    stat_x = portrait_x + portrait_size + 14
     
     # Zdrowie (%)
     hp_label = font_small.render("ZDROWIE", True, (180, 180, 180))
     hp_text = f"{player_health}%"
     hp_surf = font_hud.render(hp_text, True, RED if player_health < 30 else WHITE)
     
-    screen.blit(hp_label, (stat_x, panel_y + 12))
-    screen.blit(hp_surf, (stat_x, panel_y + 28))
+    screen.blit(hp_label, (stat_x, panel_y + 14))
+    screen.blit(hp_surf, (stat_x, panel_y + 32))
 
     # Amunicja
     weapon = weapons[current_weapon_id]
@@ -658,15 +668,13 @@ def draw_wolfenstein_hud():
         
     ammo_surf = font_hud.render(ammo_text, True, (255, 220, 50))
 
-    screen.blit(ammo_label, (stat_x + 110, panel_y + 12))
-    screen.blit(ammo_surf, (stat_x + 110, panel_y + 28))
+    screen.blit(ammo_label, (stat_x + 110, panel_y + 14))
+    screen.blit(ammo_surf, (stat_x + 110, panel_y + 32))
 
     # Informacje sterowania u góry ekranu
     info_text = f"Postać: {selected_character['name']} | LMB/Spacja: Strzał | R: Przeładuj | F: Drzwi"
     info_surface = font_small.render(info_text, True, (200, 200, 200))
     screen.blit(info_surface, (20, 10))
-
-
 # ============================================================
 # INTERAKCJA, STRZELANIE I TRAFIENIA
 # ============================================================
