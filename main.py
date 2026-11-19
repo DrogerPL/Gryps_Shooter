@@ -55,6 +55,20 @@ natan_portraits = {
     "mid": load_portrait("assets/portraits/natan_45.png"),
     "low": load_portrait("assets/portraits/natan_low.png")
 }
+
+jan_portraits = {
+    "full": load_portrait("assets/portraits/jan_100.png"),
+    "high": load_portrait("assets/portraits/jan_75.png"),
+    "mid": load_portrait("assets/portraits/jan_45.png"),
+    "low": load_portrait("assets/portraits/jan_low.png")
+}
+
+wika_portraits = {
+    "full": load_portrait("assets/portraits/wika_100.png"),
+    "high": load_portrait("assets/portraits/wika_75.png"),
+    "mid": load_portrait("assets/portraits/wika_45.png"),
+    "low": load_portrait("assets/portraits/wika_low.png")
+}
 # ============================================================
 # TEKSTURY ŚCIAN, DRZWI I BRONI
 # ============================================================
@@ -94,9 +108,17 @@ wall_textures = {
     "D": load_texture("assets/textures/door.png")
 }
 
-# Wczytanie sprite'ów dubeltówki
+# Wczytanie modeli broni
 shotgun_idle = load_weapon_texture("assets/weapons/shotgun.png")
 shotgun_fire = load_weapon_texture("assets/weapons/shotgun_shoot.png")
+
+
+mp40_idle = load_weapon_texture("assets/weapons/mp40.png")
+mp40_fire = load_weapon_texture("assets/weapons/mp40_shoot.png")
+
+
+glock_idle = load_weapon_texture("assets/weapons/glock.png")
+glock_fire = load_weapon_texture("assets/weapons/glock_shoot.png")
 
 # Wczytanie portretów postaci
 portraits = {
@@ -110,25 +132,60 @@ portraits = {
 # MAPA POZIOMU ("D" OZNACZA DRZWI)
 # ============================================================
 
+
 WORLD_MAP = [
-    "11111111111111111111",
-    "10000010000000100001",
-    "10220010222200103301",
-    "102200D0000D00103301",
-    "10000011100111100001",
-    "111D1110000003311111",
-    "10000000111100000001",
-    "10111102222201111101",
-    "10100D0200020D001001",
-    "10103302000203301001",
-    "10103302222203301001",
-    "101000000D0000001001",
-    "10111111000111111101",
-    "100000010D0100000001",
-    "10220001111100022001",
-    "10220000000000022001",
-    "11111111111111111111"
+    "11111111111111111111111111111111111111111111111111",
+    "10000000010000000001000000000100000000010000000001",
+    "1000000001000000000D000000000100000000010000000001",
+    "10022200010000000001002222000100000000010000000001",
+    "100000000D0000000001000000000100000000010000000001",
+    "100000000100000000010000000001000333000D0000000001",
+    "10000000010000000001000000000D00000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "111D11111111111D11111111D11111111111D11111D1111111",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "100000000D0003330001000000000100000000010022220001",
+    "100000000100000000010033330001000000000D0000000001",
+    "10030000010020000001000000000100200000010003330001",
+    "10030000010020000001000000000D00200000010000000001",
+    "1003000001002000000D000000000100200000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "11111D11111111D11111111111D11111D1111111111D111111",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10002220010000000001002000000100000000010003330001",
+    "10000000010003330001002000000D00022200010000000001",
+    "100000000100000000010020000001000000000D0000000001",
+    "1000000001000000000D002000000100000000010000000001",
+    "100000000D0000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "1111D11111111111D11111D1111111111D11111111111D1111",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "100200000100000000010002220001000300000D0000000001",
+    "1002000001000333300D000000000100030000010022220001",
+    "10020000010000000001000000000D00030000010000000001",
+    "100200000D0000000001000000000100030000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "111111D11111D1111111111D11111111111D11111111D11111",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10003330010000000001003333000D00000000010030000001",
+    "100000000D0002220001000000000100222200010030000001",
+    "1000000001000000000D000000000100000000010030000001",
+    "10000000010000000001000000000100000000010030000001",
+    "100000000100000000010000000001000000000D0000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "10000000010000000001000000000100000000010000000001",
+    "11111111111111111111111111111111111111111111111111"
 ]
+
 
 MAP_WIDTH = len(WORLD_MAP[0])
 MAP_HEIGHT = len(WORLD_MAP)
@@ -154,9 +211,9 @@ AUTO_CLOSE_TIME = 3.0
 enemies = [
     {"x": 4.5, "y": 2.5, "health": 3, "state": "idle"},
     {"x": 15.5, "y": 2.5, "health": 3, "state": "idle"},
-    {"x": 9.5, "y": 9.5, "health": 3, "state": "idle"},
-    {"x": 3.5, "y": 13.5, "health": 3, "state": "idle"},
-    {"x": 16.5, "y": 13.5, "health": 3, "state": "idle"}
+    {"x": 24.5, "y": 24.5, "health": 3, "state": "idle"},
+    {"x": 14.5, "y": 34.5, "health": 3, "state": "idle"},
+    {"x": 44.5, "y": 44.5, "health": 3, "state": "idle"}
 ]
 
 ENEMY_SPEED = 1.2
@@ -229,7 +286,20 @@ MOVE_SPEED = 3.0
 ROTATION_SPEED = 2.0
 MOUSE_SENSITIVITY = 0.003
 
+# ============================================================
+# SYSTEM SPRINTU
+# ============================================================
 
+SPRINT_MULTIPLIER = 1.6
+
+SPRINT_MAX_ENERGY = 5.0
+SPRINT_REGEN_TIME = 10.0
+
+SPRINT_DRAIN_RATE = 1.5
+SPRINT_REGEN_RATE = SPRINT_MAX_ENERGY / SPRINT_REGEN_TIME
+
+sprint_energy = SPRINT_MAX_ENERGY
+sprint_active = False
 # ============================================================
 # EKRAN WYBORU POSTACI
 # ============================================================
@@ -538,8 +608,10 @@ def render_world():
 # RENDEROWANIE BRONI NA EKRANIE
 # ============================================================
 
+
 def draw_weapon():
     global is_shooting_flash
+
     weapon = weapons[current_weapon_id]
 
     if weapon["reloading"]:
@@ -548,50 +620,71 @@ def draw_weapon():
     center_x = WIDTH // 2
     base_y = HEIGHT
 
+    # ========================================================
+    # NATAN - DUBELTÓWKA
+    # ========================================================
     if current_weapon_id == 1:
-        scale_factor = 1.2 
-        current_sprite = shotgun_fire if is_shooting_flash > 0 else shotgun_idle
+        scale_factor = 1.2
+
+        current_sprite = (
+            shotgun_fire if is_shooting_flash > 0
+            else shotgun_idle
+        )
 
         new_width = int(current_sprite.get_width() * scale_factor)
         new_height = int(current_sprite.get_height() * scale_factor)
-        scaled_gun = pygame.transform.scale(current_sprite, (new_width, new_height))
+
+        scaled_gun = pygame.transform.smoothscale(
+            current_sprite, (new_width, new_height)
+        )
 
         gun_x = center_x - new_width // 2
-        gun_y = base_y - new_height + 20  
+        gun_y = base_y - new_height + 20
+
         screen.blit(scaled_gun, (gun_x, gun_y))
 
-        if is_shooting_flash > 0:
-            flash_surf = pygame.Surface((100, 100), pygame.SRCALPHA)
-            pygame.draw.circle(flash_surf, (255, 220, 50, 180), (50, 50), random.randint(30, 45))
-            screen.blit(flash_surf, (center_x - 50, gun_y - 20))
-
+    # ========================================================
+    # JAN - MP40
+    # ========================================================
     elif current_weapon_id == 2:
-        gun_width = 100
-        gun_height = 250
-        gun_rect = pygame.Rect(center_x - 20, base_y - gun_height, gun_width, gun_height)
-        pygame.draw.rect(screen, (50, 55, 60), gun_rect)
-        pygame.draw.rect(screen, (30, 30, 35), (center_x + 30, base_y - 180, 25, 120))
+        scale_factor = 1.0
 
-        if is_shooting_flash > 0:
-            flash_surf = pygame.Surface((80, 80), pygame.SRCALPHA)
-            pygame.draw.circle(flash_surf, (255, 180, 50, 220), (40, 40), random.randint(30, 50))
-            screen.blit(flash_surf, (center_x + 10, base_y - gun_height - 50))
+        current_sprite = (
+            mp40_fire if is_shooting_flash > 0
+            else mp40_idle
+        )
 
+        new_width = int(current_sprite.get_width() * scale_factor)
+        new_height = int(current_sprite.get_height() * scale_factor)
+
+        scaled_gun = pygame.transform.smoothscale(
+            current_sprite, (new_width, new_height)
+        )
+
+        gun_x = center_x - new_width // 2
+        gun_y = base_y - new_height + 10
+
+        screen.blit(scaled_gun, (gun_x, gun_y))
+
+    # ========================================================
+    # WIKTORIA - DWA GLOCKI
+    # ========================================================
     elif current_weapon_id == 3:
-        left_rect = pygame.Rect(center_x - 280, base_y - 180, 90, 180)
-        pygame.draw.rect(screen, (60, 60, 65), left_rect)
-        pygame.draw.rect(screen, (30, 30, 30), left_rect, 3)
+        gun_img = glock_fire if is_shooting_flash > 0 else glock_idle
 
-        right_rect = pygame.Rect(center_x + 190, base_y - 180, 90, 180)
-        pygame.draw.rect(screen, (60, 60, 65), right_rect)
-        pygame.draw.rect(screen, (30, 30, 30), right_rect, 3)
+        scale_factor = 0.85
+        new_width = int(gun_img.get_width() * scale_factor)
+        new_height = int(gun_img.get_height() * scale_factor)
 
-        if is_shooting_flash > 0:
-            flash_surf = pygame.Surface((70, 70), pygame.SRCALPHA)
-            pygame.draw.circle(flash_surf, (255, 200, 50, 220), (35, 35), 35)
-            screen.blit(flash_surf, (center_x - 270, base_y - 230))
-            screen.blit(flash_surf, (center_x + 200, base_y - 230))
+        scaled_gun = pygame.transform.scale(
+            gun_img,
+            (new_width, new_height)
+        )
 
+        gun_x = center_x - new_width // 2
+        gun_y = base_y - new_height + 10
+
+        screen.blit(scaled_gun, (gun_x, gun_y))
 
 # ============================================================
 # KOMPAKTOWY HUD W LEWYM DOLNYM ROGU (WOLF 3D STYLE)
@@ -602,10 +695,10 @@ font_small = pygame.font.SysFont(None, 18)
 
 def draw_wolfenstein_hud():
     # Pozycja w lewym dolnym rogu
-    panel_x = 20
-    panel_y = HEIGHT - 110
-    panel_w = 300
-    panel_h = 90
+    panel_x = 0
+    panel_y = HEIGHT - 100
+    panel_w = 335
+    panel_h = 100
 
     # Tło panelu w stylu retro
     pygame.draw.rect(screen, GRAY, (panel_x, panel_y, panel_w, panel_h))
@@ -617,37 +710,46 @@ def draw_wolfenstein_hud():
     pygame.draw.line(screen, (20, 20, 20), (panel_x, panel_y + panel_h), (panel_x + panel_w, panel_y + panel_h), 3)
     pygame.draw.line(screen, (20, 20, 20), (panel_x + panel_w, panel_y), (panel_x + panel_w, panel_y + panel_h), 3)
 
-    # Portret postaci po lewej stronie panelu
-    portrait_x = panel_x + 12
-    portrait_y = panel_y + 10
-    pygame.draw.rect(screen, (40, 40, 45), (portrait_x - 2, portrait_y - 2, 74, 74))
-    
-    # Wybór odpowiedniego portretu na podstawie HP (tylko dla Natana lub ogólnie)
-    if selected_character["id"] == 1:
+    # Większy portret dosunięty do lewego górnego rogu wnętrza panelu (bez luzów na brzegach)
+    portrait_size = 86
+    portrait_x = panel_x + 7
+    portrait_y = panel_y + 7
+    pygame.draw.rect(screen, (40, 40, 45), (portrait_x, portrait_y, portrait_size, portrait_size))
+
+    def pick_portrait(portrait_set):
         if player_health >= 95:
-            char_portrait = natan_portraits["full"]
+            return portrait_set["full"]
         elif player_health >= 75:
-            char_portrait = natan_portraits["high"]
+            return portrait_set["high"]
         elif player_health >= 45:
-            char_portrait = natan_portraits["mid"]
+            return portrait_set["mid"]
         else:
-            char_portrait = natan_portraits["low"]
+            return portrait_set["low"]
+
+    # Wybór odpowiedniego portretu na podstawie HP
+    if selected_character["id"] == 1:
+        char_portrait = pick_portrait(natan_portraits)
+    elif selected_character["id"] == 2:
+        char_portrait = pick_portrait(jan_portraits)
+    elif selected_character["id"] == 3:
+        char_portrait = pick_portrait(wika_portraits)
     else:
         # Awaryjnie dla innych postaci, jeśli jeszcze nie mają kompletów
         char_portrait = portraits.get(selected_character["id"], portraits[1])
-    scaled_portrait = pygame.transform.scale(char_portrait, (70, 70))
+
+    scaled_portrait = pygame.transform.scale(char_portrait, (portrait_size, portrait_size))
     screen.blit(scaled_portrait, (portrait_x, portrait_y))
 
     # Statystyki po prawej stronie portretu
-    stat_x = portrait_x + 85
+    stat_x = portrait_x + portrait_size + 14
     
     # Zdrowie (%)
     hp_label = font_small.render("ZDROWIE", True, (180, 180, 180))
     hp_text = f"{player_health}%"
     hp_surf = font_hud.render(hp_text, True, RED if player_health < 30 else WHITE)
     
-    screen.blit(hp_label, (stat_x, panel_y + 12))
-    screen.blit(hp_surf, (stat_x, panel_y + 28))
+    screen.blit(hp_label, (stat_x, panel_y + 14))
+    screen.blit(hp_surf, (stat_x, panel_y + 32))
 
     # Amunicja
     weapon = weapons[current_weapon_id]
@@ -658,14 +760,61 @@ def draw_wolfenstein_hud():
         
     ammo_surf = font_hud.render(ammo_text, True, (255, 220, 50))
 
-    screen.blit(ammo_label, (stat_x + 110, panel_y + 12))
-    screen.blit(ammo_surf, (stat_x + 110, panel_y + 28))
+    screen.blit(ammo_label, (stat_x + 110, panel_y + 14))
+    screen.blit(ammo_surf, (stat_x + 110, panel_y + 32))
 
-    # Informacje sterowania u góry ekranu
-    info_text = f"Postać: {selected_character['name']} | LMB/Spacja: Strzał | R: Przeładuj | F: Drzwi"
-    info_surface = font_small.render(info_text, True, (200, 200, 200))
-    screen.blit(info_surface, (20, 10))
+    
+    # ========================================================
+    # PASEK ENERGII SPRINTU
+    # ========================================================
 
+    sprint_label = font_small.render(
+        "SPRINT [SHIFT]",
+        True,
+        (180, 180, 180)
+    )
+
+    screen.blit(sprint_label, (stat_x, panel_y + 61))
+
+    # Wymiary paska
+    bar_x = stat_x
+    bar_y = panel_y + 80
+    bar_width = 210
+    bar_height = 10
+
+    # Tło paska
+    pygame.draw.rect(
+        screen,
+        (20, 20, 20),
+        (bar_x, bar_y, bar_width, bar_height)
+    )
+
+    # Aktualny poziom energii
+    sprint_ratio = sprint_energy / SPRINT_MAX_ENERGY
+    filled_width = int(bar_width * sprint_ratio)
+
+    # Kolor zależny od poziomu energii
+    if sprint_ratio > 0.5:
+        sprint_color = (50, 200, 70)
+    elif sprint_ratio > 0.2:
+        sprint_color = (230, 180, 40)
+    else:
+        sprint_color = (220, 50, 40)
+
+    if filled_width > 0:
+        pygame.draw.rect(
+            screen,
+            sprint_color,
+            (bar_x, bar_y, filled_width, bar_height)
+        )
+
+    # Obramowanie paska
+    pygame.draw.rect(
+        screen,
+        (180, 180, 180),
+        (bar_x, bar_y, bar_width, bar_height),
+        1
+    )
 
 # ============================================================
 # INTERAKCJA, STRZELANIE I TRAFIENIA
@@ -825,13 +974,17 @@ def draw_minimap():
 # STEROWANIE GRACZEM
 # ============================================================
 
+
 def update_player(dt):
     global player_x, player_y, player_angle
+    global sprint_energy, sprint_active
 
     keys = pygame.key.get_pressed()
 
+    # Obracanie postaci
     if keys[pygame.K_q] or keys[pygame.K_LEFT]:
         player_angle -= ROTATION_SPEED * dt
+
     if keys[pygame.K_e] or keys[pygame.K_RIGHT]:
         player_angle += ROTATION_SPEED * dt
 
@@ -846,32 +999,78 @@ def update_player(dt):
     right_x = -math.sin(player_angle)
     right_y = math.cos(player_angle)
 
+    # Ruch do przodu i do tyłu
     if keys[pygame.K_w] or keys[pygame.K_UP]:
         move_x += forward_x
         move_y += forward_y
+
     if keys[pygame.K_s] or keys[pygame.K_DOWN]:
         move_x -= forward_x
         move_y -= forward_y
+
+    # Ruch na boki
     if keys[pygame.K_d]:
         move_x += right_x
         move_y += right_y
+
     if keys[pygame.K_a]:
         move_x -= right_x
         move_y -= right_y
 
+    # Normalizacja ruchu
     length = math.sqrt(move_x ** 2 + move_y ** 2)
+
     if length > 0:
         move_x /= length
         move_y /= length
 
-    new_x = player_x + move_x * MOVE_SPEED * dt
-    new_y = player_y + move_y * MOVE_SPEED * dt
+    # ========================================================
+    # SPRINT
+    # ========================================================
+
+    sprint_requested = (
+        keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+    )
+
+    # Sprint tylko podczas poruszania się
+    sprint_active = (
+        sprint_requested
+        and length > 0
+        and sprint_energy > 0
+    )
+
+    if sprint_active:
+        sprint_energy -= SPRINT_DRAIN_RATE * dt
+        sprint_energy = max(0.0, sprint_energy)
+
+        # Wyłączenie sprintu po wyczerpaniu energii
+        if sprint_energy <= 0:
+            sprint_active = False
+
+    else:
+        # Regeneracja energii
+        sprint_energy += SPRINT_REGEN_RATE * dt
+        sprint_energy = min(SPRINT_MAX_ENERGY, sprint_energy)
+
+    # Prędkość zależna od sprintu
+    current_speed = MOVE_SPEED
+
+    if sprint_active:
+        current_speed *= SPRINT_MULTIPLIER
+
+    # ========================================================
+    # RUCH I KOLIZJE
+    # ========================================================
+
+    new_x = player_x + move_x * current_speed * dt
+    new_y = player_y + move_y * current_speed * dt
 
     margin = PLAYER_RADIUS
-    if not (is_wall(new_x + math.copysign(margin, move_x), player_y)):
+
+    if not is_wall(new_x + math.copysign(margin, move_x), player_y):
         player_x = new_x
 
-    if not (is_wall(player_x, new_y + math.copysign(margin, move_y))):
+    if not is_wall(player_x, new_y + math.copysign(margin, move_y)):
         player_y = new_y
 
 
@@ -907,7 +1106,7 @@ def main():
 
                 # KLAWISZE TESTOWE DO SPRAWDZENIA PORTRETÓW:
                 if event.key in [pygame.K_9, pygame.K_8, pygame.K_7, pygame.K_6]:
-                    global player_health  # <--- TO ROZWIĄZUJE PROBLEM!
+                    global player_health  
 
                 if event.key == pygame.K_9:  # Ustaw HP na 100% (stan początkowy)
                     player_health = 100
@@ -932,8 +1131,8 @@ def main():
 
         render_world()
         draw_weapon()
-        draw_wolfenstein_hud()  # Zeznaje w lewym dolnym rogu
-        draw_minimap()
+        draw_wolfenstein_hud() 
+        #draw_minimap()
 
         pygame.display.flip()
 
