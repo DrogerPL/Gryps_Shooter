@@ -92,6 +92,31 @@ def load_weapon_texture(path):
         surf.fill((150, 50, 50, 128))
         return surf
 
+
+def load_enemy_sprite(path):
+    try:
+        return pygame.image.load(path).convert_alpha()
+    except Exception as e:
+        print(f"Nie udało się wczytać grafiki przeciwnika {path}: {e}")
+
+        # Awaryjna grafika, jeśli pliku brakuje.
+        surf = pygame.Surface((100, 150), pygame.SRCALPHA)
+        pygame.draw.rect(surf, (180, 30, 30), (10, 10, 80, 140))
+        return surf
+
+
+brute_sprites = {
+    "walk": [
+        load_enemy_sprite("assets/enemies/brute_walk1.png"),
+        load_enemy_sprite("assets/enemies/brute_walk2.png")
+    ],
+
+    "attack": load_enemy_sprite("assets/enemies/brute_attack.png"),
+
+    "dead": load_enemy_sprite("assets/enemies/brute_dead.png")
+}
+
+
 def load_portrait(path):
     try:
         return pygame.image.load(path).convert_alpha()
@@ -204,20 +229,135 @@ DOOR_SPEED = 2.0
 AUTO_CLOSE_TIME = 3.0
 
 
+
 # ============================================================
-# SYSTEM WROGÓW
+# SYSTEM POMIESZCZEŃ
+# ============================================================
+
+# Każde pomieszczenie otrzymuje własny identyfikator.
+# Zamknięte drzwi oddzielają pomieszczenia.
+
+room_ids = [
+    [-1 for _ in range(MAP_WIDTH)]
+    for _ in range(MAP_HEIGHT)
+]
+
+room_counter = 0
+
+for start_y in range(MAP_HEIGHT):
+    for start_x in range(MAP_WIDTH):
+
+        if WORLD_MAP[start_y][start_x] != "0":
+            continue
+
+        if room_ids[start_y][start_x] != -1:
+            continue
+
+        queue = [(start_x, start_y)]
+        room_ids[start_y][start_x] = room_counter
+
+        while queue:
+            current_x, current_y = queue.pop(0)
+
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx = current_x + dx
+                ny = current_y + dy
+
+                if not (0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT):
+                    continue
+
+                if WORLD_MAP[ny][nx] != "0":
+                    continue
+
+                if room_ids[ny][nx] != -1:
+                    continue
+
+                room_ids[ny][nx] = room_counter
+                queue.append((nx, ny))
+
+        room_counter += 1
+
+
+def get_room_id(x, y):
+    mx = int(x)
+    my = int(y)
+
+    if 0 <= mx < MAP_WIDTH and 0 <= my < MAP_HEIGHT:
+        return room_ids[my][mx]
+
+    return None
+
+
+# ============================================================
+# KONFIGURACJA RODZAJÓW WROGÓW
+# ============================================================
+
+ENEMY_TYPES = {
+    "shooter": {
+        "health": 5,
+        "speed": 1.1,
+        "damage": 5,
+        "attack_range": 8.0,
+        "attack_cooldown": 1.5
+    },
+
+    "brute": {
+        "health": 12,
+        "speed": 1.45,
+        "damage": 18,
+        "attack_range": 0.85,
+        "attack_cooldown": 1.2
+    },
+
+    "dog": {
+        "health": 4,
+        "speed": 3,
+        "damage": 8,
+        "attack_range": 0.65,
+        "attack_cooldown": 0.7
+    }
+}
+
+
+def create_enemy(x, y, enemy_type):
+    config = ENEMY_TYPES[enemy_type]
+
+    return {
+        "x": x,
+        "y": y,
+        "type": enemy_type,
+        "health": config["health"],
+        "max_health": config["health"],
+        "state": "idle",
+        "room_id": get_room_id(x, y),
+        "attack_timer": random.uniform(0.5, 1.5),
+        "zigzag_phase": random.uniform(0, math.pi * 2),
+
+        # Animacja przeciwnika
+        "anim_frame": 0,
+        "anim_timer": 0.0,
+        "anim_state": "walk",
+        "anim_state_timer": 0.0
+    }
+
+
+# ============================================================
+# ROZMIESZCZENIE WROGÓW
 # ============================================================
 
 enemies = [
-    {"x": 4.5, "y": 2.5, "health": 3, "state": "idle"},
-    {"x": 15.5, "y": 2.5, "health": 3, "state": "idle"},
-    {"x": 24.5, "y": 24.5, "health": 3, "state": "idle"},
-    {"x": 14.5, "y": 34.5, "health": 3, "state": "idle"},
-    {"x": 44.5, "y": 44.5, "health": 3, "state": "idle"}
+    create_enemy(4.5, 2.5, "shooter"),
+    create_enemy(15.5, 2.5, "brute"),
+    create_enemy(17.5, 2.5, "dog"),
+    create_enemy(14.5, 34.5, "shooter"),
+    create_enemy(44.5, 44.5, "brute")
 ]
 
-ENEMY_SPEED = 1.2
-ENEMY_DETECT_DIST = 5.0
+ENEMY_DETECT_DIST = 0.0
+
+# Pomieszczenie, w którym aktualnie znajduje się gracz.
+player_room_id = None
+
 
 
 # ============================================================
@@ -414,35 +554,297 @@ def update_doors(dt):
                     door["progress"] = 0.0
                     door["status"] = "closed"
 
+
+def enemy_has_line_of_sight(enemy):
+    dx = player_x - enemy["x"]
+    dy = player_y - enemy["y"]
+
+    dist = math.sqrt(dx ** 2 + dy ** 2)
+
+    if dist <= 0:
+        return True
+
+    steps = max(1, int(dist * 10))
+
+    for i in range(1, steps):
+        check_x = enemy["x"] + dx * i / steps
+        check_y = enemy["y"] + dy * i / steps
+
+        if is_wall(check_x, check_y):
+            return False
+
+    return True
+
+
+def move_enemy(enemy, move_x, move_y):
+    new_x = enemy["x"] + move_x
+    new_y = enemy["y"] + move_y
+
+    # Kolizje z mapą
+    if not is_wall(new_x, enemy["y"]):
+        enemy["x"] = new_x
+
+    if not is_wall(enemy["x"], new_y):
+        enemy["y"] = new_y
+
+
+
+
+
 def update_enemies(dt):
+
+    global player_health, player_room_id
+
+    # Aktualny pokój gracza.
+    player_room_id = get_room_id(player_x, player_y)
+
     for enemy in enemies:
+
+        enemy_type = enemy["type"]
+        config = ENEMY_TYPES[enemy_type]
+
+        # ====================================================
+        # OBSŁUGA ŚMIERCI PRZECIWNIKÓW
+        # ====================================================
+
         if enemy["health"] <= 0:
+
+            if enemy_type == "brute":
+                enemy["anim_state"] = "dead"
+
             continue
+
+        # ====================================================
+        # ANIMACJA OSIŁKA
+        # ====================================================
+
+        if enemy_type == "brute":
+
+            # Jeżeli trwa animacja ataku, odliczamy jej czas.
+            if enemy["anim_state"] == "attack":
+
+                enemy["anim_state_timer"] -= dt
+
+                if enemy["anim_state_timer"] <= 0:
+
+                    enemy["anim_state"] = "walk"
+                    enemy["anim_timer"] = 0.0
+                    enemy["anim_frame"] = 0
+
+            else:
+
+                # Animacja chodzenia.
+                enemy["anim_timer"] += dt
+
+                if enemy["anim_timer"] >= 0.25:
+
+                    enemy["anim_timer"] = 0.0
+                    enemy["anim_frame"] = 1 - enemy["anim_frame"]
+
+        # ====================================================
+        # ODLICZANIE CZASU ATAKU
+        # ====================================================
+
+        enemy["attack_timer"] -= dt
+
+        # ====================================================
+        # AKTYWOWANIE PRZECIWNIKA
+        # ====================================================
+
+        # Przeciwnik pozostaje nieaktywny, dopóki gracz
+        # nie wejdzie do pomieszczenia, w którym się znajduje.
+
+        if enemy["state"] == "idle":
+
+            if player_room_id == enemy["room_id"]:
+
+                enemy["state"] = "chasing"
+
+                print(
+                    f"Aktywowano przeciwnika: {enemy_type}"
+                )
+
+            else:
+                continue
+
+        # ====================================================
+        # OBLICZANIE ODLEGŁOŚCI OD GRACZA
+        # ====================================================
 
         dx = player_x - enemy["x"]
         dy = player_y - enemy["y"]
-        dist = math.sqrt(dx**2 + dy**2)
 
-        if dist < ENEMY_DETECT_DIST:
-            enemy["state"] = "chasing"
+        dist = math.sqrt(dx ** 2 + dy ** 2)
 
-        if enemy["state"] == "chasing" and dist > 0.5:
-            move_x = (dx / dist) * ENEMY_SPEED * dt
-            move_y = (dy / dist) * ENEMY_SPEED * dt
+        if dist <= 0.001:
+            continue
 
-            if not is_wall(enemy["x"] + move_x, enemy["y"]):
-                enemy["x"] += move_x
-            if not is_wall(enemy["x"], enemy["y"] + move_y):
-                enemy["y"] += move_y
+        dir_x = dx / dist
+        dir_y = dy / dist
+
+        # ====================================================
+        # 1. STRZELEC
+        # ====================================================
+
+        if enemy_type == "shooter":
+
+            # Strzelec stara się utrzymywać średni dystans.
+            preferred_distance = 4.5
+
+            if dist > preferred_distance + 0.7:
+
+                move_enemy(
+                    enemy,
+                    dir_x * config["speed"] * dt,
+                    dir_y * config["speed"] * dt
+                )
+
+            elif dist < preferred_distance - 0.7:
+
+                move_enemy(
+                    enemy,
+                    -dir_x * config["speed"] * dt,
+                    -dir_y * config["speed"] * dt
+                )
+
+            else:
+
+                # Poruszanie się na boki.
+                enemy["zigzag_phase"] += dt * 2.0
+
+                strafe = math.sin(
+                    enemy["zigzag_phase"]
+                )
+
+                move_x = -dir_y * strafe
+                move_y = dir_x * strafe
+
+                move_enemy(
+                    enemy,
+                    move_x * config["speed"] * 0.65 * dt,
+                    move_y * config["speed"] * 0.65 * dt
+                )
+
+            # Strzał tylko wtedy, gdy przeciwnik widzi gracza.
+            if (
+                2.0 <= dist <= config["attack_range"]
+                and enemy_has_line_of_sight(enemy)
+                and enemy["attack_timer"] <= 0
+            ):
+
+                player_health = max(
+                    0,
+                    player_health - config["damage"]
+                )
+
+                enemy["attack_timer"] = config["attack_cooldown"]
+
+                print("Strzelec trafił gracza!")
+
+        # ====================================================
+        # 2. OSIŁEK
+        # ====================================================
+
+        elif enemy_type == "brute":
+
+            # Osiłek nie może wejść w model gracza.
+            stop_distance = 0.95
+
+            if dist > stop_distance:
+
+                move_x = dir_x * config["speed"] * dt
+                move_y = dir_y * config["speed"] * dt
+
+                move_enemy(
+                    enemy,
+                    move_x,
+                    move_y
+                )
+
+            else:
+
+                # Atak wręcz.
+                if enemy["attack_timer"] <= 0:
+
+                    player_health = max(
+                        0,
+                        player_health - config["damage"]
+                    )
+
+                    enemy["attack_timer"] = config["attack_cooldown"]
+
+                    # Uruchomienie animacji ataku.
+                    enemy["anim_state"] = "attack"
+                    enemy["anim_state_timer"] = 0.45
+
+                    print("Osiłek uderzył gracza!")
+
+        # ====================================================
+        # 3. PIES
+        # ====================================================
+
+        elif enemy_type == "dog":
+
+            # Pies zatrzymuje się bardzo blisko gracza,
+            # ale nie wchodzi bezpośrednio w jego pozycję.
+            stop_distance = 0.75
+
+            if dist > stop_distance:
+
+                enemy["zigzag_phase"] += dt * 2.5
+
+                # Delikatny ruch na boki.
+                zigzag = (
+                    math.sin(enemy["zigzag_phase"]) * 0.35
+                )
+
+                move_x = dir_x - dir_y * zigzag
+                move_y = dir_y + dir_x * zigzag
+
+                # Normalizacja kierunku.
+                length = math.sqrt(
+                    move_x ** 2 + move_y ** 2
+                )
+
+                if length > 0:
+
+                    move_x /= length
+                    move_y /= length
+
+                move_enemy(
+                    enemy,
+                    move_x * config["speed"] * dt,
+                    move_y * config["speed"] * dt
+                )
+
+            else:
+
+                # Ugryzienie z bardzo bliskiej odległości.
+                if enemy["attack_timer"] <= 0:
+
+                    player_health = max(
+                        0,
+                        player_health - config["damage"]
+                    )
+
+                    enemy["attack_timer"] = config["attack_cooldown"]
+
+                    print("Pies ugryzł gracza!")
 
 
 # ============================================================
 # RAYCASTING & RENDEROWANIE ŚWIATA
 # ============================================================
 
+
 def render_world():
-    # Świat zajmuje teraz całą wysokość ekranu (HEIGHT)
+
+    # ============================================================
+    # TŁO – NIEBO I PODŁOGA
+    # ============================================================
+
     screen.fill(CEILING_COLOR)
+
     pygame.draw.rect(
         screen,
         FLOOR_COLOR,
@@ -458,7 +860,12 @@ def render_world():
 
     z_buffer = [float("inf")] * RENDER_WIDTH
 
+    # ============================================================
+    # RENDEROWANIE ŚCIAN
+    # ============================================================
+
     for x in range(RENDER_WIDTH):
+
         camera_x = 2.0 * x / RENDER_WIDTH - 1.0
 
         ray_dir_x = dir_x + plane_x * camera_x
@@ -467,8 +874,17 @@ def render_world():
         map_x = int(player_x)
         map_y = int(player_y)
 
-        delta_dist_x = abs(1 / ray_dir_x) if abs(ray_dir_x) > 1e-7 else float("inf")
-        delta_dist_y = abs(1 / ray_dir_y) if abs(ray_dir_y) > 1e-7 else float("inf")
+        delta_dist_x = (
+            abs(1 / ray_dir_x)
+            if abs(ray_dir_x) > 1e-7
+            else float("inf")
+        )
+
+        delta_dist_y = (
+            abs(1 / ray_dir_y)
+            if abs(ray_dir_y) > 1e-7
+            else float("inf")
+        )
 
         if ray_dir_x < 0:
             step_x = -1
@@ -488,6 +904,7 @@ def render_world():
         side = 0
 
         while not hit:
+
             if side_dist_x < side_dist_y:
                 side_dist_x += delta_dist_x
                 map_x += step_x
@@ -497,35 +914,68 @@ def render_world():
                 map_y += step_y
                 side = 1
 
-            if map_x < 0 or map_x >= MAP_WIDTH or map_y < 0 or map_y >= MAP_HEIGHT:
+            if (
+                map_x < 0
+                or map_x >= MAP_WIDTH
+                or map_y < 0
+                or map_y >= MAP_HEIGHT
+            ):
                 hit = True
                 break
 
             cell = WORLD_MAP[map_y][map_x]
+
             if cell != "0":
+
                 if cell == "D":
+
                     door_data = doors.get((map_x, map_y))
+
                     if door_data and door_data["progress"] >= 1.0:
                         continue
+
                 hit = True
 
-        if map_x < 0 or map_x >= MAP_WIDTH or map_y < 0 or map_y >= MAP_HEIGHT:
+        if (
+            map_x < 0
+            or map_x >= MAP_WIDTH
+            or map_y < 0
+            or map_y >= MAP_HEIGHT
+        ):
             continue
 
         if side == 0:
-            perp_wall_dist = (map_x - player_x + (1 - step_x) / 2) / ray_dir_x
+            perp_wall_dist = (
+                map_x - player_x + (1 - step_x) / 2
+            ) / ray_dir_x
         else:
-            perp_wall_dist = (map_y - player_y + (1 - step_y) / 2) / ray_dir_y
+            perp_wall_dist = (
+                map_y - player_y + (1 - step_y) / 2
+            ) / ray_dir_y
 
         perp_wall_dist = max(0.05, perp_wall_dist)
+
         z_buffer[x] = perp_wall_dist
 
         line_height = int(HEIGHT / perp_wall_dist)
-        draw_start = max(0, HEIGHT // 2 - line_height // 2)
-        draw_end = min(HEIGHT, HEIGHT // 2 + line_height // 2)
+
+        draw_start = max(
+            0,
+            HEIGHT // 2 - line_height // 2
+        )
+
+        draw_end = min(
+            HEIGHT,
+            HEIGHT // 2 + line_height // 2
+        )
 
         wall_type = WORLD_MAP[map_y][map_x]
-        texture = wall_textures.get(wall_type, wall_textures["1"])
+
+        texture = wall_textures.get(
+            wall_type,
+            wall_textures["1"]
+        )
+
         texture_width = texture.get_width()
         texture_height = texture.get_height()
 
@@ -533,32 +983,67 @@ def render_world():
             wall_x = player_y + perp_wall_dist * ray_dir_y
         else:
             wall_x = player_x + perp_wall_dist * ray_dir_x
+
         wall_x -= math.floor(wall_x)
 
         if wall_type == "D":
+
             door_data = doors.get((map_x, map_y))
-            open_progress = door_data["progress"] if door_data else 0.0
+
+            open_progress = (
+                door_data["progress"]
+                if door_data
+                else 0.0
+            )
+
             wall_x = (wall_x + open_progress) % 1.0
 
         texture_x = int(wall_x * texture_width)
-        texture_x = max(0, min(texture_width - 1, texture_x))
+
+        texture_x = max(
+            0,
+            min(texture_width - 1, texture_x)
+        )
 
         if side == 0 and ray_dir_x > 0:
             texture_x = texture_width - texture_x - 1
+
         if side == 1 and ray_dir_y < 0:
             texture_x = texture_width - texture_x - 1
 
-        texture_column = texture.subsurface((texture_x, 0, 1, texture_height))
-        full_wall_surface = pygame.transform.scale(texture_column, (RENDER_SCALE, line_height))
+        texture_column = texture.subsurface(
+            (texture_x, 0, 1, texture_height)
+        )
+
+        full_wall_surface = pygame.transform.scale(
+            texture_column,
+            (RENDER_SCALE, line_height)
+        )
 
         wall_top = HEIGHT // 2 - line_height // 2
+
         visible_top = draw_start - wall_top
         visible_height = draw_end - draw_start
 
         if visible_height > 0:
-            wall_surface = full_wall_surface.subsurface((0, max(0, visible_top), RENDER_SCALE, visible_height))
 
-            brightness = max(35, min(255, int(255 / (1 + perp_wall_dist * 0.18))))
+            wall_surface = full_wall_surface.subsurface(
+                (
+                    0,
+                    max(0, visible_top),
+                    RENDER_SCALE,
+                    visible_height
+                )
+            )
+
+            brightness = max(
+                35,
+                min(
+                    255,
+                    int(255 / (1 + perp_wall_dist * 0.18))
+                )
+            )
+
             if side == 1:
                 brightness = int(brightness * 0.7)
 
@@ -567,41 +1052,346 @@ def render_world():
                 special_flags=pygame.BLEND_RGB_MULT
             )
 
-            screen.blit(wall_surface, (x * RENDER_SCALE, draw_start))
+            screen.blit(
+                wall_surface,
+                (x * RENDER_SCALE, draw_start)
+            )
 
+    # ============================================================
     # RENDEROWANIE WROGÓW
-    sorted_enemies = sorted(enemies, key=lambda e: (player_x - e["x"])**2 + (player_y - e["y"])**2, reverse=True)
+    # ============================================================
+
+    sorted_enemies = sorted(
+        enemies,
+        key=lambda e: (
+            (player_x - e["x"]) ** 2
+            + (player_y - e["y"]) ** 2
+        ),
+        reverse=True
+    )
+
+    inv_det = 1.0 / (
+        plane_x * dir_y - dir_x * plane_y
+    )
 
     for enemy in sorted_enemies:
-        if enemy["health"] <= 0:
-            continue
 
         sprite_x = enemy["x"] - player_x
         sprite_y = enemy["y"] - player_y
 
-        inv_det = 1.0 / (plane_x * dir_y - dir_x * plane_y)
-        transform_x = inv_det * (dir_y * sprite_x - dir_x * sprite_y)
-        transform_y = inv_det * (-plane_y * sprite_x + plane_x * sprite_y)
+        transform_x = inv_det * (
+            dir_y * sprite_x - dir_x * sprite_y
+        )
 
-        if transform_y > 0.2:
-            screen_x = int((WIDTH / 2) * (1.0 + transform_x / transform_y))
+        transform_y = inv_det * (
+            -plane_y * sprite_x + plane_x * sprite_y
+        )
 
-            sprite_height = abs(int(HEIGHT / transform_y))
-            sprite_width = abs(int(HEIGHT / transform_y))
+        if transform_y <= 0.2:
+            continue
 
-            draw_start_y = max(0, HEIGHT // 2 - sprite_height // 2)
-            draw_end_y = min(HEIGHT, HEIGHT // 2 + sprite_height // 2)
+        screen_x = int(
+            (WIDTH / 2) * (
+                1.0 + transform_x / transform_y
+            )
+        )
 
-            draw_start_x = max(0, screen_x - sprite_width // 2)
-            draw_end_x = min(WIDTH, screen_x + sprite_width // 2)
+        # ========================================================
+        # OSIŁEK – GRAFIKI PNG
+        # ========================================================
 
-            for stripe in range(draw_start_x, draw_end_x):
+        if enemy["type"] == "brute":
+
+            # Wybór odpowiedniej klatki animacji.
+            if enemy["health"] <= 0:
+
+                brute_image = brute_sprites["dead"]
+
+            elif enemy["anim_state"] == "attack":
+
+                brute_image = brute_sprites["attack"]
+
+            else:
+
+                brute_image = brute_sprites["walk"][
+                    enemy["anim_frame"]
+                ]
+
+            original_width = brute_image.get_width()
+            original_height = brute_image.get_height()
+
+            if original_height <= 0:
+                continue
+
+
+            if enemy["health"] <= 0:
+                 sprite_height = max(
+                    1,
+                int(HEIGHT / transform_y * 0.30)
+                )
+                 
+            else:
+                sprite_height = max(
+                    1,
+                    int(HEIGHT / transform_y * 1.25)
+                )
+
+            # Zachowanie proporcji oryginalnej grafiki.
+            aspect_ratio = original_width / original_height
+
+            sprite_width = max(
+                1,
+                int(sprite_height * aspect_ratio)
+            )
+
+            if enemy["health"] <= 0:
+                draw_start_y = HEIGHT // 2 + int(sprite_height * 0.35)
+
+            else:
+                draw_start_y = HEIGHT // 2 - sprite_height // 2
+
+            draw_start_x = screen_x - sprite_width // 2
+            
+            # Skalowanie grafiki.
+            scaled_sprite = pygame.transform.scale(
+                brute_image,
+                (sprite_width, sprite_height)
+            )
+
+            # Oświetlenie zależne od odległości.
+            brightness = max(
+                35,
+                min(
+                    255,
+                    int(255 / (1 + transform_y * 0.2))
+                )
+            )
+
+            # Przyciemnienie grafiki bez usuwania przezroczystości.
+            scaled_sprite.fill(
+                (brightness, brightness, brightness, 255),
+                special_flags=pygame.BLEND_RGBA_MULT
+            )
+
+            # Renderowanie kolumnami z uwzględnieniem Z-buffera.
+            for stripe in range(
+                max(0, draw_start_x),
+                min(WIDTH, draw_start_x + sprite_width)
+            ):
+
                 render_stripe_idx = stripe // RENDER_SCALE
-                if 0 <= render_stripe_idx < RENDER_WIDTH:
-                    if transform_y < z_buffer[render_stripe_idx]:
-                        color_val = max(50, min(255, int(255 / (1 + transform_y * 0.2))))
-                        enemy_color = (color_val, 20, 20)
-                        pygame.draw.line(screen, enemy_color, (stripe, draw_start_y), (stripe, draw_end_y))
+
+                if not (
+                    0 <= render_stripe_idx < RENDER_WIDTH
+                ):
+                    continue
+
+                # Sprawdzenie, czy ściana nie zasłania przeciwnika.
+                if transform_y < z_buffer[render_stripe_idx]:
+
+                    source_x = stripe - draw_start_x
+
+                    sprite_column = scaled_sprite.subsurface(
+                        (
+                            source_x,
+                            0,
+                            1,
+                            sprite_height
+                        )
+                    )
+
+                    screen.blit(
+                        sprite_column,
+                        (stripe, draw_start_y)
+                    )
+
+            # ====================================================
+            # PASEK ŻYCIA OSIŁKA
+            # ====================================================
+
+            if enemy["health"] > 0 and transform_y < 8.0:
+
+                bar_width = max(
+                    8,
+                    int(sprite_width * 0.7)
+                )
+
+                bar_height = max(
+                    2,
+                    int(sprite_height * 0.035)
+                )
+
+                bar_x = screen_x - bar_width // 2
+                bar_y = draw_start_y - bar_height - 5
+
+                health_ratio = max(
+                    0,
+                    enemy["health"] / enemy["max_health"]
+                )
+
+                pygame.draw.rect(
+                    screen,
+                    (35, 15, 15),
+                    (
+                        bar_x,
+                        bar_y,
+                        bar_width,
+                        bar_height
+                    )
+                )
+
+                pygame.draw.rect(
+                    screen,
+                    (40, 210, 55),
+                    (
+                        bar_x,
+                        bar_y,
+                        int(bar_width * health_ratio),
+                        bar_height
+                    )
+                )
+
+        # ========================================================
+        # STRZELEC I PIES – DOTYCHCZASOWE SYLWETKI
+        # ========================================================
+
+        elif enemy["type"] == "shooter":
+
+            if enemy["health"] <= 0:
+                continue
+
+            sprite_height = abs(
+                int(HEIGHT / transform_y)
+            )
+
+            sprite_width = int(
+                sprite_height * 0.55
+            )
+
+            base_color = (220, 115, 30)
+
+        elif enemy["type"] == "dog":
+
+            if enemy["health"] <= 0:
+                continue
+
+            sprite_height = abs(
+                int(HEIGHT / transform_y * 0.60)
+            )
+
+            sprite_width = int(
+                sprite_height * 0.90
+            )
+
+            base_color = (190, 150, 65)
+
+        else:
+            continue
+
+        # ========================================================
+        # RENDEROWANIE SYLWETEK STRZELCA I PSA
+        # ========================================================
+
+        if enemy["type"] in ("shooter", "dog"):
+
+            draw_start_y = max(
+                0,
+                HEIGHT // 2 - sprite_height // 2
+            )
+
+            draw_end_y = min(
+                HEIGHT,
+                HEIGHT // 2 + sprite_height // 2
+            )
+
+            draw_start_x = max(
+                0,
+                screen_x - sprite_width // 2
+            )
+
+            draw_end_x = min(
+                WIDTH,
+                screen_x + sprite_width // 2
+            )
+
+            brightness = max(
+                35,
+                min(
+                    255,
+                    int(255 / (1 + transform_y * 0.2))
+                )
+            )
+
+            enemy_color = (
+                int(base_color[0] * brightness / 255),
+                int(base_color[1] * brightness / 255),
+                int(base_color[2] * brightness / 255)
+            )
+
+            for stripe in range(
+                draw_start_x,
+                draw_end_x
+            ):
+
+                render_stripe_idx = stripe // RENDER_SCALE
+
+                if not (
+                    0 <= render_stripe_idx < RENDER_WIDTH
+                ):
+                    continue
+
+                if transform_y < z_buffer[render_stripe_idx]:
+
+                    pygame.draw.line(
+                        screen,
+                        enemy_color,
+                        (stripe, draw_start_y),
+                        (stripe, draw_end_y)
+                    )
+
+            # Pasek życia.
+            if transform_y < 8.0:
+
+                bar_width = max(
+                    8,
+                    int(sprite_width * 0.7)
+                )
+
+                bar_height = max(
+                    2,
+                    int(sprite_height * 0.035)
+                )
+
+                bar_x = screen_x - bar_width // 2
+                bar_y = draw_start_y - bar_height - 5
+
+                health_ratio = max(
+                    0,
+                    enemy["health"] / enemy["max_health"]
+                )
+
+                pygame.draw.rect(
+                    screen,
+                    (35, 15, 15),
+                    (
+                        bar_x,
+                        bar_y,
+                        bar_width,
+                        bar_height
+                    )
+                )
+
+                pygame.draw.rect(
+                    screen,
+                    (40, 210, 55),
+                    (
+                        bar_x,
+                        bar_y,
+                        int(bar_width * health_ratio),
+                        bar_height
+                    )
+                )
+
 
 
 # ============================================================
@@ -844,10 +1634,6 @@ def shoot():
         weapon["ammo"] -= 1
         weapon["cooldown"] = weapon["fire_rate"]
         is_shooting_flash = 4
-
-        for enemy in enemies:
-            if enemy["health"] > 0:
-                enemy["state"] = "chasing"
 
         hit_enemy = None
         min_dist = weapon["range"]
@@ -1128,11 +1914,11 @@ def main():
         update_doors(dt)
         update_weapons(dt)
         update_enemies(dt)
-
+       
         render_world()
         draw_weapon()
         draw_wolfenstein_hud() 
-        #draw_minimap()
+       # draw_minimap()
 
         pygame.display.flip()
 
