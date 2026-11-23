@@ -116,6 +116,17 @@ brute_sprites = {
     "dead": load_enemy_sprite("assets/enemies/brute_dead.png")
 }
 
+shooter_sprites = {
+    "walk": [
+        load_enemy_sprite("assets/enemies/shooter_walk1.png"),
+        load_enemy_sprite("assets/enemies/shooter_walk2.png")
+    ],
+
+    "attack": load_enemy_sprite("assets/enemies/shooter_attack.png"),
+
+    "dead": load_enemy_sprite("assets/enemies/shooter_dead.png")
+}
+
 
 def load_portrait(path):
     try:
@@ -609,16 +620,16 @@ def update_enemies(dt):
 
         if enemy["health"] <= 0:
 
-            if enemy_type == "brute":
+            if enemy_type in ("brute", "shooter"):
                 enemy["anim_state"] = "dead"
 
             continue
 
         # ====================================================
-        # ANIMACJA OSIŁKA
+        # ANIMACJA OSIŁKA I STRZELCA
         # ====================================================
 
-        if enemy_type == "brute":
+        if enemy_type in ("brute", "shooter"):
 
             # Jeżeli trwa animacja ataku, odliczamy jej czas.
             if enemy["anim_state"] == "attack":
@@ -739,6 +750,10 @@ def update_enemies(dt):
 
                 enemy["attack_timer"] = config["attack_cooldown"]
 
+                # Uruchomienie animacji strzelania.
+                enemy["anim_state"] = "attack"
+                enemy["anim_state_timer"] = 0.35
+
                 print("Strzelec trafił gracza!")
 
         # ====================================================
@@ -830,7 +845,6 @@ def update_enemies(dt):
                     enemy["attack_timer"] = config["attack_cooldown"]
 
                     print("Pies ugryzł gracza!")
-
 
 # ============================================================
 # RAYCASTING & RENDEROWANIE ŚWIATA
@@ -1097,43 +1111,55 @@ def render_world():
         )
 
         # ========================================================
-        # OSIŁEK – GRAFIKI PNG
+        # OSIŁEK I STRZELEC – GRAFIKI PNG
         # ========================================================
 
-        if enemy["type"] == "brute":
+        if enemy["type"] in ("brute", "shooter"):
+
+            is_brute = enemy["type"] == "brute"
+
+            # Wybór odpowiedniego zestawu grafik.
+            sprites = brute_sprites if is_brute else shooter_sprites
 
             # Wybór odpowiedniej klatki animacji.
             if enemy["health"] <= 0:
 
-                brute_image = brute_sprites["dead"]
+                enemy_image = sprites["dead"]
 
             elif enemy["anim_state"] == "attack":
 
-                brute_image = brute_sprites["attack"]
+                enemy_image = sprites["attack"]
 
             else:
 
-                brute_image = brute_sprites["walk"][
-                    enemy["anim_frame"]
+                enemy_image = sprites["walk"][
+                    enemy["anim_frame"] % 2
                 ]
 
-            original_width = brute_image.get_width()
-            original_height = brute_image.get_height()
+            original_width = enemy_image.get_width()
+            original_height = enemy_image.get_height()
 
             if original_height <= 0:
                 continue
 
+            # ====================================================
+            # ROZMIAR SPRITE'A
+            # ====================================================
 
             if enemy["health"] <= 0:
-                 sprite_height = max(
-                    1,
-                int(HEIGHT / transform_y * 0.30)
-                )
-                 
-            else:
+
                 sprite_height = max(
                     1,
-                    int(HEIGHT / transform_y * 1.25)
+                    int(HEIGHT / transform_y * 0.30)
+                )
+
+            else:
+
+                scale_factor = 1.25 if is_brute else 1.0
+
+                sprite_height = max(
+                    1,
+                    int(HEIGHT / transform_y * scale_factor)
                 )
 
             # Zachowanie proporcji oryginalnej grafiki.
@@ -1144,17 +1170,29 @@ def render_world():
                 int(sprite_height * aspect_ratio)
             )
 
+            # ====================================================
+            # POZYCJA SPRITE'A
+            # ====================================================
+
             if enemy["health"] <= 0:
-                draw_start_y = HEIGHT // 2 + int(sprite_height * 0.35)
+
+                draw_start_y = (
+                    HEIGHT // 2
+                    + int(sprite_height * 0.35)
+                )
 
             else:
+
                 draw_start_y = HEIGHT // 2 - sprite_height // 2
 
             draw_start_x = screen_x - sprite_width // 2
-            
-            # Skalowanie grafiki.
+
+            # ====================================================
+            # SKALOWANIE GRAFIKI
+            # ====================================================
+
             scaled_sprite = pygame.transform.scale(
-                brute_image,
+                enemy_image,
                 (sprite_width, sprite_height)
             )
 
@@ -1173,7 +1211,10 @@ def render_world():
                 special_flags=pygame.BLEND_RGBA_MULT
             )
 
-            # Renderowanie kolumnami z uwzględnieniem Z-buffera.
+            # ====================================================
+            # RENDEROWANIE KOLUMNAMI Z UWZGLĘDNIENIEM Z-BUFFERA
+            # ====================================================
+
             for stripe in range(
                 max(0, draw_start_x),
                 min(WIDTH, draw_start_x + sprite_width)
@@ -1206,7 +1247,7 @@ def render_world():
                     )
 
             # ====================================================
-            # PASEK ŻYCIA OSIŁKA
+            # PASEK ŻYCIA OSIŁKA / STRZELCA
             # ====================================================
 
             if enemy["health"] > 0 and transform_y < 8.0:
@@ -1252,23 +1293,8 @@ def render_world():
                 )
 
         # ========================================================
-        # STRZELEC I PIES – DOTYCHCZASOWE SYLWETKI
+        # PIES – DOTYCHCZASOWA SYLWETKA
         # ========================================================
-
-        elif enemy["type"] == "shooter":
-
-            if enemy["health"] <= 0:
-                continue
-
-            sprite_height = abs(
-                int(HEIGHT / transform_y)
-            )
-
-            sprite_width = int(
-                sprite_height * 0.55
-            )
-
-            base_color = (220, 115, 30)
 
         elif enemy["type"] == "dog":
 
@@ -1285,14 +1311,9 @@ def render_world():
 
             base_color = (190, 150, 65)
 
-        else:
-            continue
-
-        # ========================================================
-        # RENDEROWANIE SYLWETEK STRZELCA I PSA
-        # ========================================================
-
-        if enemy["type"] in ("shooter", "dog"):
+            # ====================================================
+            # RENDEROWANIE SYLWETKI PSA
+            # ====================================================
 
             draw_start_y = max(
                 0,
@@ -1349,7 +1370,10 @@ def render_world():
                         (stripe, draw_end_y)
                     )
 
-            # Pasek życia.
+            # ====================================================
+            # PASEK ŻYCIA PSA
+            # ====================================================
+
             if transform_y < 8.0:
 
                 bar_width = max(
@@ -1391,7 +1415,6 @@ def render_world():
                         bar_height
                     )
                 )
-
 
 
 # ============================================================
